@@ -1,6 +1,6 @@
 
+import re
 from datetime import datetime, timezone
-
 
 class EvidenceGraph:
     """
@@ -55,6 +55,27 @@ class EvidenceGraph:
             "edges": self.edges,
         }
 
+
+def extract_failed_tests(test_output: str) -> list[str]:
+    """
+    Extract failed pytest test identifiers from the
+    short test summary.
+    """
+    failed_tests = []
+
+    for line in test_output.splitlines():
+        match = re.match(
+            r"^FAILED\s+(\S+?)(?:\s+-\s+.*)?$",
+            line.strip(),
+        )
+
+        if match:
+            test_name = match.group(1)
+
+            if test_name not in failed_tests:
+                failed_tests.append(test_name)
+
+    return failed_tests
 
 def build_investigation_graph(
     test_result: dict,
@@ -130,5 +151,28 @@ def build_investigation_graph(
         "reversal_experiment",
         "evaluated_by",
     )
+
+        # Add an evidence node for each failed pytest test.
+    failed_tests = extract_failed_tests(
+        test_result.get("output", "")
+    )
+
+    for index, test_name in enumerate(failed_tests, start=1):
+        node_id = f"failed_test_{index}"
+
+        graph.add_node(
+            node_id,
+            "failed_test",
+            {
+                "test_name": test_name,
+                "status": "FAILED",
+            },
+        )
+
+        graph.add_edge(
+            node_id,
+            "test_failure",
+            "contributes_to_failure",
+        )
 
     return graph.to_dict()

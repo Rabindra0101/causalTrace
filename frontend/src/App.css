@@ -424,3 +424,38 @@ h1 {
     flex-direction: column;
   }
 }
+
+/* Improve AI analysis readability */
+
+.analysis {
+  white-space: normal;
+  line-height: 1.7;
+}
+
+.analysis p {
+  margin: 10px 0;
+}
+
+.analysis h1,
+.analysis h2,
+.analysis h3 {
+  margin: 20px 0 12px;
+}
+
+.analysis pre {
+  margin: 12px 0;
+}
+
+.analysis ul,
+.analysis ol {
+  margin: 12px 0;
+  padding-left: 28px;
+}
+
+.analysis li {
+  margin: 8px 0;
+}
+
+.analysis li > p {
+  margin: 4px 0;
+}

@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -35,11 +35,58 @@ function formatLabel(value: string) {
 }
 
 function formatCode(value: unknown) {
-  return typeof value === 'number' ? String(value) : 'Unavailable'
+  return typeof value === 'number'
+    ? String(value)
+    : 'Unavailable'
+}
+
+function getNodeLabel(node: EvidenceNode) {
+  if (node.type === 'failed_test') {
+    const testName = String(node.data.test_name ?? node.id)
+    return testName.split('::').pop() ?? testName
+  }
+
+  const labels: Record<string, string> = {
+    test_failure: 'Test Failure',
+    git_commit: 'Regression Commit',
+    ai_hypothesis: 'Root Cause Hypothesis',
+    experiment: 'Reversal Experiment',
+  }
+
+  return labels[node.type] ?? formatLabel(node.id)
 }
 
 function EvidenceDetails({ node }: { node: EvidenceNode }) {
   const data = node.data
+
+  if (node.type === 'failed_test') {
+    return (
+      <div className="evidence-details">
+        <h4>Individual Failed Test</h4>
+
+        <p>
+          <strong>Test identifier:</strong>
+        </p>
+
+        <code className="evidence-hash">
+          {String(data.test_name ?? 'Unknown test')}
+        </code>
+
+        <p>
+          <strong>Status: </strong>
+          <span style={{ color: '#f87171' }}>
+            {String(data.status ?? 'FAILED')}
+          </span>
+        </p>
+
+        <p>
+          This test failed during the investigation. Its
+          failure contributes to the overall test failure
+          evidence.
+        </p>
+      </div>
+    )
+  }
 
   if (node.type === 'experiment') {
     const verified = data.verified === true
@@ -61,9 +108,11 @@ function EvidenceDetails({ node }: { node: EvidenceNode }) {
           <div className="experiment-result">
             <span>Before Reversal</span>
             <strong>
-              {beforeCode === 1
-                ? 'TEST FAILED'
-                : `Exit code: ${formatCode(beforeCode)}`}
+              {beforeCode === 0
+                ? 'TEST PASSED'
+                : typeof beforeCode === 'number'
+                  ? 'TEST NOT PASSING'
+                  : `Exit code: ${formatCode(beforeCode)}`}
             </strong>
             <small>Original suspected revision</small>
           </div>
@@ -92,12 +141,15 @@ function EvidenceDetails({ node }: { node: EvidenceNode }) {
     return (
       <div className="evidence-details">
         <h4>Suspected Regression Commit</h4>
+
         <p>
           <strong>Commit hash:</strong>
         </p>
+
         <code className="evidence-hash">
           {String(data.hash ?? 'Unknown')}
         </code>
+
         <p>
           This commit was selected for investigation based on
           the observed regression and Git history.
@@ -110,9 +162,12 @@ function EvidenceDetails({ node }: { node: EvidenceNode }) {
     return (
       <div className="evidence-details">
         <h4>Observed Test Failure</h4>
+
         <p>
-          <strong>Exit code:</strong> {formatCode(data.return_code)}
+          <strong>Exit code:</strong>{' '}
+          {formatCode(data.return_code)}
         </p>
+
         <pre className="evidence-output">
           {String(data.output ?? 'No test output available')}
         </pre>
@@ -124,13 +179,17 @@ function EvidenceDetails({ node }: { node: EvidenceNode }) {
     return (
       <div className="evidence-details">
         <h4>NVIDIA Nemotron Hypothesis</h4>
+
         <p>
-          <strong>Model:</strong> {String(data.model ?? 'Unknown')}
+          <strong>Model:</strong>{' '}
+          {String(data.model ?? 'Unknown')}
         </p>
+
         <p>
           This is the AI-generated explanation. Experimental
           verification is recorded separately.
         </p>
+
         <pre className="evidence-output">
           {String(data.explanation ?? 'No explanation available')}
         </pre>
@@ -146,34 +205,98 @@ function EvidenceDetails({ node }: { node: EvidenceNode }) {
 }
 
 export default function EvidenceGraph({ nodes, edges }: Props) {
-  const [selectedNode, setSelectedNode] = useState<EvidenceNode | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
+    null
+  )
 
-  const flowNodes = useMemo<Node[]>(
-    () =>
-      nodes.map((node, index) => ({
+  const selectedNode =
+    nodes.find(node => node.id === selectedNodeId) ?? null
+
+  useEffect(() => {
+    if (selectedNodeId && !nodes.some(node => node.id === selectedNodeId)) {
+      setSelectedNodeId(null)
+    }
+  }, [nodes, selectedNodeId])
+
+  const flowNodes = useMemo<Node[]>(() => {
+    const mainOrder = [
+      'test_failure',
+      'regression_commit',
+      'root_cause_hypothesis',
+      'reversal_experiment',
+    ]
+
+    const mainNodes = mainOrder
+      .map(id => nodes.find(node => node.id === id))
+      .filter((node): node is EvidenceNode => node !== undefined)
+
+    const failedTests = nodes.filter(
+      node => node.type === 'failed_test'
+    )
+
+    const knownIds = new Set([
+      ...mainNodes.map(node => node.id),
+      ...failedTests.map(node => node.id),
+    ])
+
+    const otherNodes = nodes.filter(
+      node => !knownIds.has(node.id)
+    )
+
+    const positions = new Map<string, { x: number; y: number }>()
+
+    // Place individual failed tests above the main evidence chain.
+    failedTests.forEach((node, index) => {
+      positions.set(node.id, {
+        x: (index - (failedTests.length - 1) / 2) * 310,
+        y: 0,
+      })
+    })
+
+    // Keep the four primary evidence nodes in a central chain.
+    const mainStartY = failedTests.length > 0 ? 190 : 0
+
+    mainNodes.forEach((node, index) => {
+      positions.set(node.id, {
+        x: 0,
+        y: mainStartY + index * 170,
+      })
+    })
+
+    otherNodes.forEach((node, index) => {
+      positions.set(node.id, {
+        x: 350,
+        y: mainStartY + index * 170,
+      })
+    })
+
+    return nodes.map(node => {
+      const isFailedTest = node.type === 'failed_test'
+
+      return {
         id: node.id,
-        position: {
-          x: 200,
-          y: index * 160,
-        },
+        position: positions.get(node.id) ?? { x: 0, y: 0 },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
         data: {
-          label: formatLabel(node.id),
+          label: getNodeLabel(node),
         },
         style: {
-          background: '#252e49',
+          background: isFailedTest ? '#3b2230' : '#252e49',
           color: '#ffffff',
-          border: '1px solid #818cf8',
+          border: isFailedTest
+            ? '1px solid #f87171'
+            : '1px solid #818cf8',
           borderRadius: '12px',
           padding: '18px',
           width: 260,
           fontWeight: 600,
           textAlign: 'center' as const,
+          overflowWrap: 'anywhere' as const,
         },
-      })),
-    [nodes]
-  )
+      }
+    })
+  }, [nodes])
 
   const flowEdges = useMemo<Edge[]>(
     () =>
@@ -217,10 +340,7 @@ export default function EvidenceGraph({ nodes, edges }: Props) {
           elementsSelectable
           colorMode="dark"
           onNodeClick={(_, clickedNode) => {
-            const selected = nodes.find(
-              node => node.id === clickedNode.id
-            )
-            setSelectedNode(selected ?? null)
+            setSelectedNodeId(clickedNode.id)
           }}
         >
           <Background color="#334155" gap={20} />
@@ -232,7 +352,7 @@ export default function EvidenceGraph({ nodes, edges }: Props) {
         <section className="evidence-inspector">
           <div className="evidence-inspector-header">
             <div>
-              <h3>{formatLabel(selectedNode.id)}</h3>
+              <h3>{getNodeLabel(selectedNode)}</h3>
               <p>
                 Evidence type: {formatLabel(selectedNode.type)}
               </p>
@@ -241,7 +361,7 @@ export default function EvidenceGraph({ nodes, edges }: Props) {
             <button
               type="button"
               className="evidence-close"
-              onClick={() => setSelectedNode(null)}
+              onClick={() => setSelectedNodeId(null)}
             >
               Close
             </button>

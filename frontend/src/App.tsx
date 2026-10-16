@@ -1,7 +1,7 @@
 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import EvidenceGraph from './EvidenceGraph'
 
@@ -31,7 +31,6 @@ type Repository = {
 function App() {
   const [graph, setGraph] = useState<EvidenceGraphData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -39,12 +38,18 @@ function App() {
   const [selectedRepository, setSelectedRepository] = useState('')
   const [repositoriesLoading, setRepositoriesLoading] = useState(true)
 
-  // Load available repositories from FastAPI.
+  // Prevent outdated requests from displaying results after a selection change.
+  const selectionVersion = useRef(0)
+
+  // Load repository options only. Do not load any previous investigation.
   useEffect(() => {
+    const controller = new AbortController()
+
     async function loadRepositories() {
       try {
         const response = await fetch('/api/repositories', {
           cache: 'no-store',
+          signal: controller.signal,
         })
 
         if (!response.ok) {
@@ -56,67 +61,56 @@ function App() {
         const data: { repositories: Repository[] } =
           await response.json()
 
-        setRepositories(data.repositories)
-
-        if (data.repositories.length > 0) {
-          setSelectedRepository(data.repositories[0].id)
-        } else {
-          throw new Error('No repositories are available')
+        if (!controller.signal.aborted) {
+          setRepositories(data.repositories)
         }
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Unable to load repositories'
-        )
+        if (!controller.signal.aborted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load repositories'
+          )
+        }
       } finally {
-        setRepositoriesLoading(false)
+        if (!controller.signal.aborted) {
+          setRepositoriesLoading(false)
+        }
       }
     }
 
     void loadRepositories()
+
+    return () => controller.abort()
   }, [])
 
-  // Load the latest saved Evidence Graph.
-  useEffect(() => {
-    async function loadGraph() {
-      try {
-        const response = await fetch('/api/graph', {
-          cache: 'no-store',
-        })
+  // Clear all displayed investigation data when changing repositories.
+  function handleRepositoryChange(repositoryId: string) {
+    if (running) return
 
-        if (!response.ok) {
-          throw new Error(`API returned ${response.status}`)
-        }
+    selectionVersion.current += 1
 
-        const data: EvidenceGraphData = await response.json()
-        setGraph(data)
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Unable to load graph'
-        )
-      } finally {
-        setLoading(false)
-      }
-    }
+    setSelectedRepository(repositoryId)
+    setGraph(null)
+    setError(null)
+    setSuccess(null)
+  }
 
-    void loadGraph()
-  }, [])
-
-  // Run an investigation for the selected repository.
+  // Run a new investigation only when explicitly requested.
   async function runInvestigation() {
     if (
       running ||
-      loading ||
       repositoriesLoading ||
       !selectedRepository
     ) {
       return
     }
 
+    const repositoryId = selectedRepository
+    const currentVersion = selectionVersion.current
+
     setRunning(true)
+    setGraph(null)
     setError(null)
     setSuccess(null)
 
@@ -127,7 +121,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          repository_id: selectedRepository,
+          repository_id: repositoryId,
         }),
       })
 
@@ -142,7 +136,7 @@ function App() {
         )
       }
 
-      // Fetch the updated Evidence Graph after completion.
+      // Load the new graph only after this investigation completes.
       const graphResponse = await fetch('/api/graph', {
         cache: 'no-store',
       })
@@ -156,22 +150,30 @@ function App() {
       const updatedGraph: EvidenceGraphData =
         await graphResponse.json()
 
+      // Ignore results if the repository selection changed.
+      if (selectionVersion.current !== currentVersion) {
+        return
+      }
+
       setGraph(updatedGraph)
 
       const repositoryName =
         repositories.find(
-          repository => repository.id === selectedRepository
-        )?.name ?? selectedRepository
+          repository => repository.id === repositoryId
+        )?.name ?? repositoryId
 
       setSuccess(
         `${repositoryName} investigation completed. Evidence Graph updated.`
       )
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Investigation failed'
-      )
+      if (selectionVersion.current === currentVersion) {
+        setGraph(null)
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Investigation failed'
+        )
+      }
     } finally {
       setRunning(false)
     }
@@ -214,24 +216,16 @@ function App() {
 
             <select
               value={selectedRepository}
-              onChange={event => {
-                setSelectedRepository(event.target.value)
-                setSuccess(null)
-              }}
+              onChange={event =>
+                handleRepositoryChange(event.target.value)
+              }
               disabled={running || repositoriesLoading}
             >
-              {repositoriesLoading && (
-                <option value="">
-                  Loading repositories...
-                </option>
-              )}
-
-              {!repositoriesLoading &&
-                repositories.length === 0 && (
-                  <option value="">
-                    No repositories available
-                  </option>
-                )}
+              <option value="">
+                {repositoriesLoading
+                  ? 'Loading repositories...'
+                  : 'Select a repository'}
+              </option>
 
               {repositories.map(repository => (
                 <option
@@ -254,9 +248,7 @@ function App() {
             onClick={() => void runInvestigation()}
             disabled={
               running ||
-              loading ||
               repositoriesLoading ||
-              repositories.length === 0 ||
               !selectedRepository
             }
           >
@@ -266,10 +258,6 @@ function App() {
           </button>
         </div>
       </header>
-
-      {loading && (
-        <p>Loading investigation...</p>
-      )}
 
       {running && (
         <p
@@ -295,6 +283,18 @@ function App() {
         >
           {success}
         </p>
+      )}
+
+      {!graph && !running && !error && (
+        <section className="panel">
+          <h2>No Investigation Selected</h2>
+
+          <p className="subtitle">
+            {selectedRepository
+              ? 'Click Run Investigation to analyze the selected repository.'
+              : 'Select a repository and click Run Investigation to generate a new evidence report.'}
+          </p>
+        </section>
       )}
 
       {graph && (
@@ -325,9 +325,7 @@ function App() {
 
             <p>
               <b>Suspected commit:</b>{' '}
-              {String(
-                commit?.data.hash ?? 'Unknown'
-              )}
+              {String(commit?.data.hash ?? 'Unknown')}
             </p>
 
             <p>
