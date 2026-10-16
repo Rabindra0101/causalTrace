@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 
 app = FastAPI(
@@ -16,6 +17,23 @@ app = FastAPI(
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORT_PATH = PROJECT_ROOT / "reports" / "latest_investigation.json"
+
+# Only these explicitly configured local repositories may be investigated.
+ALLOWED_REPOSITORIES = {
+    "calculator": {
+        "name": "Calculator Demo",
+        "repo": PROJECT_ROOT,
+        "test_dir": "demo/sample_repo",
+    },
+    "inventory": {
+        "name": "Inventory Demo",
+        "repo": PROJECT_ROOT.parent / "inventory-regression-demo",
+        "test_dir": ".",
+    },
+}
+
+class InvestigationRequest(BaseModel):
+    repository_id: str = "calculator"
 
 # Prevent two investigations from running simultaneously.
 investigation_lock = threading.Lock()
@@ -67,15 +85,39 @@ def get_evidence_graph():
 
     return report["evidence_graph"]
 
+@app.get("/api/repositories")
+def get_repositories():
+    """Return the repositories available for investigation."""
+    return {
+        "repositories": [
+            {
+                "id": repository_id,
+                "name": config["name"],
+            }
+            for repository_id, config in ALLOWED_REPOSITORIES.items()
+        ]
+    }
 
 @app.post("/api/run-investigation")
-def run_investigation():
+def run_investigation(request: InvestigationRequest | None = None):
     """
     Run the bundled demo investigation.
 
     The API does not accept arbitrary repository paths
     or shell commands.
     """
+    repository_id = (
+        request.repository_id if request is not None else "calculator"
+    )
+
+    if repository_id not in ALLOWED_REPOSITORIES:
+        raise HTTPException(
+            status_code=400,
+            detail="Repository is not in the allowed list.",
+        )
+
+    repository = ALLOWED_REPOSITORIES[repository_id]
+
     if not investigation_lock.acquire(blocking=False):
         raise HTTPException(
             status_code=409,
@@ -83,8 +125,27 @@ def run_investigation():
         )
 
     try:
+        # Record the existing report's modification time.
+        # This helps detect investigations that exit without
+        # generating a new report.
+        previous_report_time = (
+            REPORT_PATH.stat().st_mtime_ns
+            if REPORT_PATH.is_file()
+            else None
+        )
+
         result = subprocess.run(
-            [sys.executable, "-X", "utf8", "-m", "causaltrace.main"],
+            [sys.executable,
+            "-X",
+            "utf8",
+            "-m",
+            "causaltrace.main",
+            "--repo",
+            str(repository["repo"]),
+            "--test-dir",
+            repository["test_dir"],
+            ],
+            
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -108,6 +169,18 @@ def run_investigation():
             raise HTTPException(
                 status_code=500,
                 detail="Investigation finished without generating a report.",
+            )
+
+        # Confirm the report was updated during this investigation.
+        current_report_time = REPORT_PATH.stat().st_mtime_ns
+
+        if (
+            previous_report_time is not None
+            and current_report_time == previous_report_time
+        ):
+            raise HTTPException(
+                status_code=500,
+                detail="Investigation did not generate a fresh report.",
             )
 
         return {
