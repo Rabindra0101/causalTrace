@@ -4,6 +4,7 @@ import sys
 import tempfile
 import shutil
 from pathlib import Path
+from causaltrace.test_runner import run_pytest
 
 
 def run_command(args, cwd):
@@ -12,7 +13,10 @@ def run_command(args, cwd):
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
+        timeout=30,
     )
 
 
@@ -29,18 +33,14 @@ def test_commit(repo_path: Path, commit: str, test_directory: str):
         )
 
         try:
-            result = subprocess.run(
-                [sys.executable, "-m", "pytest", "-v"],
-                cwd=worktree / test_directory,
-                capture_output=True,
-                text=True,
-            )
+            result = run_pytest(worktree / test_directory)
+
 
             return {
                 "commit": commit,
-                "passed": result.returncode == 0,
-                "return_code": result.returncode,
-                "output": result.stdout + "\n" + result.stderr,
+                "passed": result["passed"],
+                "return_code": result["return_code"],
+                "output": result["output"],
             }
 
         finally:
@@ -162,15 +162,10 @@ def verify_by_reversal(
 
         try:
             # Run tests before the reversal
-            before = subprocess.run(
-                [sys.executable, "-m", "pytest", "-v"],
-                cwd=worktree / test_directory,
-                capture_output=True,
-                text=True,
-            )
+            before = run_pytest(worktree / test_directory)
 
             print(f"Original revision: {suspect_commit[:7]}")
-            print(f"Before reversal: {'PASS' if before.returncode == 0 else 'NOT PASS'}")
+            print(f"Before reversal: {'PASS' if before['passed'] else 'NOT PASS'}")
 
             # Reverse the suspect commit inside the temporary worktree
             reversal = subprocess.run(
@@ -178,6 +173,7 @@ def verify_by_reversal(
                 cwd=worktree,
                 capture_output=True,
                 text=True,
+                timeout=30,
             )
 
             if reversal.returncode != 0:
@@ -199,27 +195,21 @@ def verify_by_reversal(
                 shutil.rmtree(pytest_cache, ignore_errors=True)
 
             # Run tests after the reversal
-            after = subprocess.run(
-                [sys.executable, "-m", "pytest", "-v"],
-                cwd=worktree / test_directory,
-                capture_output=True,
-                text=True,
-            )
+            after = run_pytest(worktree / test_directory)
 
-            print(f"After reversal: {'PASS' if after.returncode == 0 else 'NOT PASS'}")
-            
-            print(f"\nAfter reversal exit code: {after.returncode}")
+            print(f"After reversal: {'PASS' if after['passed'] else 'NOT PASS'}")
+            print(f"\nAfter reversal exit code: {after['return_code']}")
             print("\nAfter reversal pytest output:")
-            print(after.stdout)
+            print(after["stdout"])
 
-            if after.stderr:
+            if after["stderr"]:
                 print("\nAfter reversal errors:")
-                print(after.stderr)
+                print(after["stderr"])
 
             verified = (
-                before.returncode == 1
-                and "FAILED" in before.stdout
-                and after.returncode == 0
+                before["return_code"] == 1
+                and "FAILED" in before["output"]
+                and after["return_code"] == 0
             )
 
             if verified:
@@ -232,8 +222,8 @@ def verify_by_reversal(
 
             return {
                 "verified": verified,
-                "before_return_code": before.returncode,
-                "after_return_code": after.returncode,
+                "before_return_code": before["return_code"],
+                "after_return_code": after["return_code"],
             }
 
         finally:
