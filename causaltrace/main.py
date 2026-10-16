@@ -1,6 +1,7 @@
 
 import sys
 import argparse
+import subprocess
 from pathlib import Path
 
 from causaltrace.git_analyzer import (
@@ -17,6 +18,31 @@ if hasattr(sys.stdout, "reconfigure"):
 
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+def validate_repository(repo_path: Path) -> bool:
+    if not repo_path.is_dir():
+        return False
+
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return (
+        result.returncode == 0
+        and Path(result.stdout.strip()).resolve() == repo_path
+    )
+
+def validate_test_directory(repo_path: Path, test_directory: str) -> bool:
+    test_path = (repo_path / test_directory).resolve()
+
+    return (
+        test_path.is_dir()
+        and test_path.is_relative_to(repo_path.resolve())
+    )
 
 def parse_arguments():
     project_root = Path(__file__).resolve().parent.parent
@@ -43,17 +69,22 @@ def parse_arguments():
 
     # Keep the current demo as the only permitted target
     # until the rest of the engine supports external repositories.
-    if args.repo != project_root.resolve():
-        parser.error("External repositories are not enabled yet.")
+    if not validate_repository(args.repo):
+        parser.error(
+            "The --repo path must be the root of an existing Git repository."
+        )
 
-    if args.test_dir != "demo/sample_repo":
-        parser.error("Custom test directories are not enabled yet.")
+    if not validate_test_directory(args.repo, args.test_dir):
+        parser.error(
+            "The --test-dir path must be an existing directory inside the repository."
+        )
 
     return args
 
 def main():
     args = parse_arguments()
 
+    application_root = Path(__file__).resolve().parent.parent
     project_root = args.repo
     test_directory = args.test_dir
     target_repo = project_root / test_directory
@@ -152,7 +183,7 @@ def main():
 
     # 7. Generate a machine-readable investigation report
     report_path = generate_report(
-        project_root=project_root,
+        project_root=application_root,
         regression_commit=commit_hash,
         hypothesis=hypothesis,
         reversal_result=reversal_result,
