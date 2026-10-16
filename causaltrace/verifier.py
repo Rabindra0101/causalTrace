@@ -51,11 +51,14 @@ def test_commit(repo_path: Path, commit: str, test_directory: str):
             )
 
 
-def verify_regression(repo_path: Path, suspect_commit: str):
+def verify_regression(
+    repo_path: Path,
+    suspect_commit: str,
+    test_directory: str = "demo/sample_repo",
+):
     """Compare a suspected regression commit with its parent."""
 
     parent_commit = f"{suspect_commit}^"
-    test_directory = "demo/sample_repo"
 
     print("\n[5] Running counterfactual verification...\n")
 

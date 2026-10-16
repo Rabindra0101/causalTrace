@@ -1,5 +1,6 @@
 
 import sys
+import argparse
 from pathlib import Path
 
 from causaltrace.git_analyzer import (
@@ -16,10 +17,46 @@ if hasattr(sys.stdout, "reconfigure"):
 
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    
-def main():
+
+def parse_arguments():
     project_root = Path(__file__).resolve().parent.parent
-    target_repo = project_root / "demo" / "sample_repo"
+
+    parser = argparse.ArgumentParser(
+        description="CausalTrace regression investigation engine"
+    )
+
+    parser.add_argument(
+        "--repo",
+        type=Path,
+        default=project_root,
+        help="Path to the Git repository to investigate",
+    )
+
+    parser.add_argument(
+        "--test-dir",
+        default="demo/sample_repo",
+        help="Test directory relative to the repository root",
+    )
+
+    args = parser.parse_args()
+    args.repo = args.repo.resolve()
+
+    # Keep the current demo as the only permitted target
+    # until the rest of the engine supports external repositories.
+    if args.repo != project_root.resolve():
+        parser.error("External repositories are not enabled yet.")
+
+    if args.test_dir != "demo/sample_repo":
+        parser.error("Custom test directories are not enabled yet.")
+
+    return args
+
+def main():
+    args = parse_arguments()
+
+    project_root = args.repo
+    test_directory = args.test_dir
+    target_repo = project_root / test_directory
 
     print("\nCAUSALTRACE")
     print("=" * 60)
@@ -58,7 +95,10 @@ def main():
     # 3. Search Git history for the regression
     print("\n[3] Finding regression-introducing commit...\n")
 
-    commit_hash = find_regression_commit(project_root)
+    commit_hash = find_regression_commit(
+        project_root,
+        test_directory = test_directory,
+        )
 
     if commit_hash is None:
         print("Unable to identify a regression-introducing commit.")
@@ -99,7 +139,8 @@ def main():
 
     reversal_result = verify_by_reversal(
         project_root,
-        commit_hash,
+        commit_hash, 
+        test_directory = test_directory,
     )
 
     if reversal_result["verified"]:
