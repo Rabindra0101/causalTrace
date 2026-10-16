@@ -12,13 +12,15 @@ def generate_report(
     hypothesis: str,
     reversal_result: dict,
     test_result: dict,
+    alternative_commit: str | None = None,
+    alternative_reversal_result: dict | None = None,
 ) -> Path:
     """
-    Generate a JSON report containing the investigation
-    results and structured evidence graph.
+    Generate a JSON report containing investigation results,
+    reversal experiments, and the structured evidence graph.
     """
 
-    # 1. Build the evidence graph from real investigation data
+    # 1. Build the evidence graph from real investigation data.
     evidence_graph = build_investigation_graph(
         test_result=test_result,
         regression_commit=regression_commit,
@@ -26,7 +28,49 @@ def generate_report(
         reversal_result=reversal_result,
     )
 
-    # 2. Organize all investigation information
+    # 2. Record the primary regression reversal experiment.
+    experiments = {
+        "commit_reversal": {
+            "commit": regression_commit,
+            "verified": reversal_result["verified"],
+            "outcome": reversal_result.get(
+                "outcome", "inconclusive"
+            ),
+            "reason": reversal_result.get(
+                "reason", ""
+            ),
+            "before_return_code": reversal_result.get(
+                "before_return_code"
+            ),
+            "after_return_code": reversal_result.get(
+                "after_return_code"
+            ),
+        }
+    }
+
+    # 3. Record the alternative hypothesis if it was tested.
+    if (
+        alternative_commit is not None
+        and alternative_reversal_result is not None
+    ):
+        experiments["alternative_reversal"] = {
+            "commit": alternative_commit,
+            "verified": alternative_reversal_result["verified"],
+            "outcome": alternative_reversal_result.get(
+                "outcome", "inconclusive"
+            ),
+            "reason": alternative_reversal_result.get(
+                "reason", ""
+            ),
+            "before_return_code": alternative_reversal_result.get(
+                "before_return_code"
+            ),
+            "after_return_code": alternative_reversal_result.get(
+                "after_return_code"
+            ),
+        }
+
+    # 4. Organize the complete investigation report.
     report = {
         "project": "CausalTrace",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -45,27 +89,16 @@ def generate_report(
             "hypothesis": hypothesis,
         },
 
-        "experiments": {
-            "commit_reversal": {
-                "verified": reversal_result["verified"],
-                "before_return_code": reversal_result.get(
-                    "before_return_code"
-                ),
-                "after_return_code": reversal_result.get(
-                    "after_return_code"
-                ),
-            }
-        },
+        "experiments": experiments,
     }
 
-    # 3. Create the reports directory
+    # 5. Create the reports directory.
     reports_directory = project_root / "reports"
     reports_directory.mkdir(parents=True, exist_ok=True)
 
-    # 4. Determine where to save the report
+    # 6. Save the report as formatted JSON.
     report_path = reports_directory / "latest_investigation.json"
 
-    # 5. Save the report as formatted JSON
     with report_path.open("w", encoding="utf-8") as file:
         json.dump(report, file, indent=4)
 
@@ -73,3 +106,5 @@ def generate_report(
     print(f"Saved to: {report_path}")
 
     return report_path
+
+

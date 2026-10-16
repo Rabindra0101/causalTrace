@@ -28,20 +28,213 @@ type Repository = {
   name: string
 }
 
+type ReversalOutcome =
+  | 'verified'
+  | 'not_supported'
+  | 'inconclusive'
+
+type ReversalExperiment = {
+  commit?: string
+  verified: boolean
+  outcome?: ReversalOutcome
+  reason?: string
+  before_return_code: number | null
+  after_return_code: number | null
+}
+
+type InvestigationReport = {
+  experiments: {
+    commit_reversal: ReversalExperiment
+    alternative_reversal?: ReversalExperiment
+  }
+}
+
+function testStatus(returnCode: number | null | undefined) {
+  if (returnCode === 0) return 'PASS'
+  if (returnCode === 1) return 'FAIL'
+  return 'UNKNOWN'
+}
+
+function getOutcome(
+  experiment: ReversalExperiment
+): ReversalOutcome {
+  if (
+    experiment.outcome === 'verified' ||
+    experiment.outcome === 'not_supported' ||
+    experiment.outcome === 'inconclusive'
+  ) {
+    return experiment.outcome
+  }
+
+  // Compatibility with reports created before the
+  // backend introduced structured outcomes.
+  if (
+    experiment.verified &&
+    experiment.before_return_code === 1 &&
+    experiment.after_return_code === 0
+  ) {
+    return 'verified'
+  }
+
+  if (
+    experiment.before_return_code === 1 &&
+    experiment.after_return_code === 1
+  ) {
+    return 'not_supported'
+  }
+
+  return 'inconclusive'
+}
+
+function outcomeLabel(outcome: ReversalOutcome) {
+  switch (outcome) {
+    case 'verified':
+      return 'VERIFIED'
+    case 'not_supported':
+      return 'NOT SUPPORTED'
+    default:
+      return 'INCONCLUSIVE'
+  }
+}
+
+function outcomeExplanation(
+  experiment: ReversalExperiment
+) {
+  if (experiment.reason) {
+    return experiment.reason
+  }
+
+  switch (getOutcome(experiment)) {
+    case 'verified':
+      return 'Reverting this commit restored passing tests, supporting the causal hypothesis.'
+    case 'not_supported':
+      return 'Tests still failed after reversal. Undoing this commit did not resolve the observed failure.'
+    default:
+      return 'The reversal experiment could not establish a reliable conclusion.'
+  }
+}
+
+function ExperimentCard({
+  title,
+  description,
+  experiment,
+}: {
+  title: string
+  description: string
+  experiment: ReversalExperiment
+}) {
+  const before = testStatus(experiment.before_return_code)
+  const after = testStatus(experiment.after_return_code)
+  const outcome = getOutcome(experiment)
+
+  return (
+    <article className="experiment-card">
+      <div className="experiment-card-header">
+        <div>
+          <h3>{title}</h3>
+
+          <p className="experiment-description">
+            {description}
+          </p>
+        </div>
+
+        <span
+          className={`experiment-badge ${
+            outcome === 'verified'
+              ? 'experiment-badge-success'
+              : 'experiment-badge-neutral'
+          }`}
+        >
+          {outcomeLabel(outcome)}
+        </span>
+      </div>
+
+      <div className="experiment-commit">
+        <span>Commit</span>
+
+        <code title={experiment.commit ?? 'Unknown'}>
+          {experiment.commit?.slice(0, 7) ?? 'Unknown'}
+        </code>
+      </div>
+
+      <div className="experiment-transition">
+        <div className="experiment-test">
+          <span>Before reversal</span>
+
+          <strong
+            className={
+              before === 'PASS'
+                ? 'experiment-pass'
+                : before === 'FAIL'
+                  ? 'experiment-fail'
+                  : ''
+            }
+          >
+            {before}
+          </strong>
+        </div>
+
+        <span
+          className="experiment-arrow"
+          aria-hidden="true"
+        >
+          →
+        </span>
+
+        <div className="experiment-test">
+          <span>After reversal</span>
+
+          <strong
+            className={
+              after === 'PASS'
+                ? 'experiment-pass'
+                : after === 'FAIL'
+                  ? 'experiment-fail'
+                  : ''
+            }
+          >
+            {after}
+          </strong>
+        </div>
+      </div>
+
+      <p className="experiment-conclusion">
+        {outcomeExplanation(experiment)}
+      </p>
+    </article>
+  )
+}
+
 function App() {
-  const [graph, setGraph] = useState<EvidenceGraphData | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [graph, setGraph] =
+    useState<EvidenceGraphData | null>(null)
+
+  const [report, setReport] =
+    useState<InvestigationReport | null>(null)
+
+  const [error, setError] =
+    useState<string | null>(null)
+
   const [running, setRunning] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
 
-  const [repositories, setRepositories] = useState<Repository[]>([])
-  const [selectedRepository, setSelectedRepository] = useState('')
-  const [repositoriesLoading, setRepositoriesLoading] = useState(true)
+  const [success, setSuccess] =
+    useState<string | null>(null)
 
-  // Prevent outdated requests from displaying results after a selection change.
+  const [repositories, setRepositories] =
+    useState<Repository[]>([])
+
+  const [selectedRepository, setSelectedRepository] =
+    useState('')
+
+  const [repositoriesLoading, setRepositoriesLoading] =
+    useState(true)
+
+  // Prevent outdated requests from displaying results
+  // after the selected repository changes.
   const selectionVersion = useRef(0)
 
-  // Load repository options only. Do not load any previous investigation.
+  // Load repository options only.
+  // Do not automatically load previous investigations.
   useEffect(() => {
     const controller = new AbortController()
 
@@ -84,7 +277,6 @@ function App() {
     return () => controller.abort()
   }, [])
 
-  // Clear all displayed investigation data when changing repositories.
   function handleRepositoryChange(repositoryId: string) {
     if (running) return
 
@@ -92,11 +284,11 @@ function App() {
 
     setSelectedRepository(repositoryId)
     setGraph(null)
+    setReport(null)
     setError(null)
     setSuccess(null)
   }
 
-  // Run a new investigation only when explicitly requested.
   async function runInvestigation() {
     if (
       running ||
@@ -111,22 +303,28 @@ function App() {
 
     setRunning(true)
     setGraph(null)
+    setReport(null)
     setError(null)
     setSuccess(null)
 
     try {
-      const response = await fetch('/api/run-investigation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          repository_id: repositoryId,
-        }),
-      })
+      const response = await fetch(
+        '/api/run-investigation',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            repository_id: repositoryId,
+          }),
+        }
+      )
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorData = await response
+          .json()
+          .catch(() => null)
 
         throw new Error(
           typeof errorData?.detail === 'string'
@@ -136,10 +334,16 @@ function App() {
         )
       }
 
-      // Load the new graph only after this investigation completes.
-      const graphResponse = await fetch('/api/graph', {
-        cache: 'no-store',
-      })
+      // Fetch both outputs after the investigation finishes.
+      const [graphResponse, reportResponse] =
+        await Promise.all([
+          fetch('/api/graph', {
+            cache: 'no-store',
+          }),
+          fetch('/api/investigation', {
+            cache: 'no-store',
+          }),
+        ])
 
       if (!graphResponse.ok) {
         throw new Error(
@@ -147,15 +351,30 @@ function App() {
         )
       }
 
+      if (!reportResponse.ok) {
+        throw new Error(
+          'Investigation completed, but the experiment report could not be loaded.'
+        )
+      }
+
       const updatedGraph: EvidenceGraphData =
         await graphResponse.json()
 
-      // Ignore results if the repository selection changed.
+      const updatedReport: InvestigationReport =
+        await reportResponse.json()
+
+      if (!updatedReport.experiments?.commit_reversal) {
+        throw new Error(
+          'The investigation report is missing the reversal experiment.'
+        )
+      }
+
       if (selectionVersion.current !== currentVersion) {
         return
       }
 
       setGraph(updatedGraph)
+      setReport(updatedReport)
 
       const repositoryName =
         repositories.find(
@@ -163,11 +382,13 @@ function App() {
         )?.name ?? repositoryId
 
       setSuccess(
-        `${repositoryName} investigation completed. Evidence Graph updated.`
+        `${repositoryName} investigation completed. Evidence Graph and reversal experiments updated.`
       )
     } catch (err) {
       if (selectionVersion.current === currentVersion) {
         setGraph(null)
+        setReport(null)
+
         setError(
           err instanceof Error
             ? err.message
@@ -195,6 +416,19 @@ function App() {
     node => node.type === 'experiment'
   )
 
+  const primaryReversal =
+    report?.experiments.commit_reversal
+
+  const alternativeReversal =
+    report?.experiments.alternative_reversal
+
+  const primaryOutcome: ReversalOutcome =
+    primaryReversal
+      ? getOutcome(primaryReversal)
+      : experiment?.data.verified === true
+        ? 'verified'
+        : 'inconclusive'
+
   return (
     <main className="dashboard">
       <header className="header">
@@ -206,7 +440,8 @@ function App() {
           <h1>CausalTrace</h1>
 
           <p className="subtitle">
-            Don't guess why software failed. Investigate the evidence.
+            Don't guess why software failed.
+            Investigate the evidence.
           </p>
         </div>
 
@@ -313,9 +548,7 @@ function App() {
             <article className="card">
               <h3>Reversal Verification</h3>
               <strong>
-                {experiment?.data.verified === true
-                  ? 'VERIFIED'
-                  : 'INCONCLUSIVE'}
+                {outcomeLabel(primaryOutcome)}
               </strong>
             </article>
           </section>
@@ -325,7 +558,11 @@ function App() {
 
             <p>
               <b>Suspected commit:</b>{' '}
-              {String(commit?.data.hash ?? 'Unknown')}
+              {String(
+                primaryReversal?.commit ??
+                commit?.data.hash ??
+                'Unknown'
+              )}
             </p>
 
             <p>
@@ -335,11 +572,41 @@ function App() {
 
             <p>
               <b>Verification:</b>{' '}
-              {experiment?.data.verified === true
-                ? 'Reversal restored passing tests'
-                : 'Not verified'}
+              {primaryReversal
+                ? outcomeExplanation(primaryReversal)
+                : primaryOutcome === 'verified'
+                  ? 'Reversal restored passing tests'
+                  : 'Investigation was inconclusive'}
             </p>
           </section>
+
+          {primaryReversal && (
+            <section className="panel">
+              <h2>Reversal Experiment Comparison</h2>
+
+              <p className="subtitle">
+                Compare the effects of reversing different
+                commits to determine which hypothesis is
+                supported by test evidence.
+              </p>
+
+              <div className="experiment-grid">
+                {alternativeReversal && (
+                  <ExperimentCard
+                    title="Alternative Hypothesis"
+                    description="Reversal of the latest commit"
+                    experiment={alternativeReversal}
+                  />
+                )}
+
+                <ExperimentCard
+                  title="Regression Hypothesis"
+                  description="Reversal of the identified regression commit"
+                  experiment={primaryReversal}
+                />
+              </div>
+            </section>
+          )}
 
           <section className="panel">
             <h2>NVIDIA Nemotron Root-Cause Analysis</h2>

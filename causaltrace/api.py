@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from causaltrace.demo_setup import ensure_inventory_demo
+
 
 app = FastAPI(
     title="CausalTrace API",
@@ -27,9 +29,14 @@ ALLOWED_REPOSITORIES = {
     },
     "inventory": {
         "name": "Inventory Demo",
-        "repo": PROJECT_ROOT.parent / "inventory-regression-demo",
+        "repo": ensure_inventory_demo(),
         "test_dir": ".",
     },
+    "negative_reversal": {
+    "name": "Unrelated Commit Demo",
+    "repo": PROJECT_ROOT / "deployment" / "negative-reversal-demo",
+    "test_dir": ".",
+},
 }
 
 

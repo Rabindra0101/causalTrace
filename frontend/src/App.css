@@ -186,9 +186,9 @@ h1 {
 /* NVIDIA Nemotron Analysis */
 
 .analysis {
-  white-space: pre-wrap;
+  white-space: normal;
   overflow-wrap: anywhere;
-  line-height: 1.75;
+  line-height: 1.7;
   color: #cbd5e1;
   font-family: inherit;
 }
@@ -197,16 +197,17 @@ h1 {
 .analysis h2,
 .analysis h3 {
   color: #f8fafc;
-  margin-top: 24px;
+  margin: 20px 0 12px;
 }
 
 .analysis p {
-  margin: 12px 0;
+  margin: 10px 0;
 }
 
 .analysis pre {
   background: #0b1020;
   padding: 18px;
+  margin: 12px 0;
   border-radius: 10px;
   overflow-x: auto;
 }
@@ -234,6 +235,20 @@ h1 {
   border: 1px solid #334155;
   padding: 10px;
   text-align: left;
+}
+
+.analysis ul,
+.analysis ol {
+  margin: 12px 0;
+  padding-left: 28px;
+}
+
+.analysis li {
+  margin: 8px 0;
+}
+
+.analysis li > p {
+  margin: 4px 0;
 }
 
 /* Evidence Graph */
@@ -378,7 +393,159 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+/* Reversal Experiment Comparison */
+
+.experiment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.experiment-card {
+  min-width: 0;
+  padding: 24px;
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.experiment-card:hover {
+  border-color: #6366f1;
+}
+
+.experiment-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.experiment-card-header h3 {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.experiment-description {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.experiment-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.experiment-badge-success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.experiment-badge-neutral {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.experiment-commit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.experiment-commit code {
+  padding: 7px 11px;
+  color: #c7d2fe;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+}
+
+.experiment-transition {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.experiment-test {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 100px;
+  padding: 16px 8px;
+  background: #0b1020;
+  border: 1px solid #29334c;
+  border-radius: 10px;
+}
+
+.experiment-test span {
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+}
+
+.experiment-test strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.experiment-pass {
+  color: #86efac;
+}
+
+.experiment-fail {
+  color: #fca5a5;
+}
+
+.experiment-arrow {
+  flex-shrink: 0;
+  color: #818cf8;
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.experiment-conclusion {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #29334c;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 /* Responsive Layout */
+
+@media (max-width: 850px) {
+  .experiment-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 700px) {
   .dashboard {
@@ -425,37 +592,26 @@ h1 {
   }
 }
 
-/* Improve AI analysis readability */
+@media (max-width: 480px) {
+  .experiment-card {
+    padding: 18px;
+  }
 
-.analysis {
-  white-space: normal;
-  line-height: 1.7;
+  .experiment-transition {
+    gap: 8px;
+  }
+
+  .experiment-test {
+    min-height: 90px;
+    padding: 12px 6px;
+  }
+
+  .experiment-test strong {
+    font-size: 18px;
+  }
+
+  .experiment-arrow {
+    font-size: 20px;
+  }
 }
 
-.analysis p {
-  margin: 10px 0;
-}
-
-.analysis h1,
-.analysis h2,
-.analysis h3 {
-  margin: 20px 0 12px;
-}
-
-.analysis pre {
-  margin: 12px 0;
-}
-
-.analysis ul,
-.analysis ol {
-  margin: 12px 0;
-  padding-left: 28px;
-}
-
-.analysis li {
-  margin: 8px 0;
-}
-
-.analysis li > p {
-  margin: 4px 0;
-}
