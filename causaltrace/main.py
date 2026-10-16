@@ -1,4 +1,3 @@
-
 import sys
 import argparse
 import subprocess
@@ -10,7 +9,7 @@ from causaltrace.git_analyzer import (
 )
 from causaltrace.test_runner import run_pytest
 from causaltrace.nemotron_client import generate_root_cause_hypothesis
-from causaltrace.verifier import (find_regression_commit, verify_by_reversal)
+from causaltrace.verifier import find_regression_commit, verify_by_reversal
 from causaltrace.report_generator import generate_report
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -18,6 +17,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def validate_repository(repo_path: Path) -> bool:
     if not repo_path.is_dir():
@@ -36,6 +36,7 @@ def validate_repository(repo_path: Path) -> bool:
         and Path(result.stdout.strip()).resolve() == repo_path
     )
 
+
 def validate_test_directory(repo_path: Path, test_directory: str) -> bool:
     test_path = (repo_path / test_directory).resolve()
 
@@ -43,6 +44,7 @@ def validate_test_directory(repo_path: Path, test_directory: str) -> bool:
         test_path.is_dir()
         and test_path.is_relative_to(repo_path.resolve())
     )
+
 
 def parse_arguments():
     project_root = Path(__file__).resolve().parent.parent
@@ -67,8 +69,6 @@ def parse_arguments():
     args = parser.parse_args()
     args.repo = args.repo.resolve()
 
-    # Keep the current demo as the only permitted target
-    # until the rest of the engine supports external repositories.
     if not validate_repository(args.repo):
         parser.error(
             "The --repo path must be the root of an existing Git repository."
@@ -80,6 +80,7 @@ def parse_arguments():
         )
 
     return args
+
 
 def main():
     args = parse_arguments()
@@ -100,12 +101,12 @@ def main():
     if test_result["execution_error"]:
         print("STATUS: TEST EXECUTION ERROR")
         print(test_result["output"])
-        return
+        return 1
 
     if test_result["passed"]:
         print("STATUS: PASS")
         print("No regression detected.")
-        return
+        return 1
 
     print("STATUS: FAIL")
     print("\nFailure output:")
@@ -118,7 +119,7 @@ def main():
 
     if not commits:
         print("No commits found.")
-        return
+        return 1
 
     for commit in commits:
         print(commit)
@@ -128,12 +129,12 @@ def main():
 
     commit_hash = find_regression_commit(
         project_root,
-        test_directory = test_directory,
-        )
+        test_directory=test_directory,
+    )
 
     if commit_hash is None:
         print("Unable to identify a regression-introducing commit.")
-        return
+        return 1
 
     print(f"\nIdentified regression commit: {commit_hash[:7]}")
 
@@ -151,9 +152,7 @@ def main():
     print("NEMOTRON ROOT-CAUSE HYPOTHESIS:")
     print(hypothesis)
 
-    # Historical tests were executed by find_regression_commit().
-    # A passing-to-failing boundary was identified before AI analysis.
-
+    # 5. Review the passing-to-failing boundary
     print("\n[5] Reviewing regression evidence...\n")
 
     verification_status = "REGRESSION BOUNDARY CONFIRMED"
@@ -162,16 +161,11 @@ def main():
     print(f"First failing revision: {commit_hash[:7]}")
     print(f"Verification status: {verification_status}")
 
-    print(f"\nVerification status: {verification_status}")
-
-
-    # 6. Verify whether reversing the suspected commit
-    # restores the expected software behavior.
-
+    # 6. Test whether reversing the suspect commit restores passing tests
     reversal_result = verify_by_reversal(
         project_root,
-        commit_hash, 
-        test_directory = test_directory,
+        commit_hash,
+        test_directory=test_directory,
     )
 
     if reversal_result["verified"]:
@@ -190,20 +184,19 @@ def main():
         test_result=test_result,
     )
 
-
-    # 6. Final investigation summary
     print("\n" + "=" * 60)
     print("INVESTIGATION COMPLETE")
     print("=" * 60)
 
-    print(f"Regression reproduced: YES")
+    print("Regression reproduced: YES")
     print(f"Failing repository: {target_repo}")
     print(f"Candidate commit: {commit_hash}")
     print(f"Counterfactual verification: {verification_status}")
     print(f"Causal verification: {causal_status}")
     print(f"Investigation report: {report_path}")
     print("\nCausalTrace investigation finished.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

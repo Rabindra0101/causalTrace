@@ -18,7 +18,7 @@ app = FastAPI(
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORT_PATH = PROJECT_ROOT / "reports" / "latest_investigation.json"
 
-# Only these explicitly configured local repositories may be investigated.
+# Only explicitly configured repositories may be investigated.
 ALLOWED_REPOSITORIES = {
     "calculator": {
         "name": "Calculator Demo",
@@ -32,10 +32,12 @@ ALLOWED_REPOSITORIES = {
     },
 }
 
+
 class InvestigationRequest(BaseModel):
     repository_id: str = "calculator"
 
-# Prevent two investigations from running simultaneously.
+
+# Prevent simultaneous investigations.
 investigation_lock = threading.Lock()
 
 
@@ -49,9 +51,8 @@ def home():
 
 @app.get("/api/investigation")
 def get_investigation():
-    """
-    Return the latest saved investigation report.
-    """
+    """Return the latest saved investigation report."""
+
     if not REPORT_PATH.is_file():
         raise HTTPException(
             status_code=404,
@@ -61,6 +62,7 @@ def get_investigation():
     try:
         with REPORT_PATH.open("r", encoding="utf-8") as file:
             report = json.load(file)
+
     except (OSError, json.JSONDecodeError) as error:
         raise HTTPException(
             status_code=500,
@@ -72,9 +74,8 @@ def get_investigation():
 
 @app.get("/api/graph")
 def get_evidence_graph():
-    """
-    Return the Evidence Graph from the latest report.
-    """
+    """Return the Evidence Graph from the latest report."""
+
     report = get_investigation()
 
     if "evidence_graph" not in report:
@@ -85,9 +86,11 @@ def get_evidence_graph():
 
     return report["evidence_graph"]
 
+
 @app.get("/api/repositories")
 def get_repositories():
-    """Return the repositories available for investigation."""
+    """Return repositories available for investigation."""
+
     return {
         "repositories": [
             {
@@ -98,14 +101,16 @@ def get_repositories():
         ]
     }
 
+
 @app.post("/api/run-investigation")
 def run_investigation(request: InvestigationRequest | None = None):
     """
-    Run the bundled demo investigation.
+    Run an allowlisted investigation.
 
     The API does not accept arbitrary repository paths
     or shell commands.
     """
+
     repository_id = (
         request.repository_id if request is not None else "calculator"
     )
@@ -125,9 +130,7 @@ def run_investigation(request: InvestigationRequest | None = None):
         )
 
     try:
-        # Record the existing report's modification time.
-        # This helps detect investigations that exit without
-        # generating a new report.
+        # Track the previous report to detect stale results.
         previous_report_time = (
             REPORT_PATH.stat().st_mtime_ns
             if REPORT_PATH.is_file()
@@ -135,17 +138,17 @@ def run_investigation(request: InvestigationRequest | None = None):
         )
 
         result = subprocess.run(
-            [sys.executable,
-            "-X",
-            "utf8",
-            "-m",
-            "causaltrace.main",
-            "--repo",
-            str(repository["repo"]),
-            "--test-dir",
-            repository["test_dir"],
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "-m",
+                "causaltrace.main",
+                "--repo",
+                str(repository["repo"]),
+                "--test-dir",
+                repository["test_dir"],
             ],
-            
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -158,11 +161,7 @@ def run_investigation(request: InvestigationRequest | None = None):
         if result.returncode != 0:
             raise HTTPException(
                 status_code=500,
-                detail={
-                    "message": "Investigation process failed.",
-                    "return_code": result.returncode,
-                    "output": (result.stdout + "\n" + result.stderr)[-4000:],
-                },
+                detail="Investigation failed. Check server logs for details.",
             )
 
         if not REPORT_PATH.is_file():
@@ -171,7 +170,7 @@ def run_investigation(request: InvestigationRequest | None = None):
                 detail="Investigation finished without generating a report.",
             )
 
-        # Confirm the report was updated during this investigation.
+        # Ensure this investigation generated a fresh report.
         current_report_time = REPORT_PATH.stat().st_mtime_ns
 
         if (
