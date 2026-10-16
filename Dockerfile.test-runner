@@ -1,0 +1,12 @@
+
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir pytest==9.1.1
+
+RUN useradd --create-home --uid 10001 runner
+
+USER runner
+
+WORKDIR /workspace
+
+CMD ["python", "-m", "pytest", "-v"]
