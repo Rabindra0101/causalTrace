@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import EvidenceGraph from './EvidenceGraph'
 import RegressionTimeline from './RegressionTimeline'
+import ReadinessCard from './ReadinessCard'
+import {jsonResponse, readinessFailure} from './apiResponse'
 
 import './InvestigationDashboard.css'
 
@@ -44,15 +46,6 @@ type Health = {
   docker: { ready: boolean; available?: boolean; reason: string }
 }
 
-async function jsonResponse(response: Response) {
-  const text = await response.text()
-  let data
-  try { data = JSON.parse(text) }
-  catch { throw new Error('Backend unavailable. Start the backend on port 8000 and try again.') }
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Request failed')
-  return data
-}
-
 function Output({ title, run }: { title: string; run?: TestRun | null }) {
   if (!run) return null
   return <details className="run-receipt"><summary>{title} · {run.status ?? 'test run'} · exit {run.return_code}</summary>
@@ -86,9 +79,21 @@ export default function InvestigationDashboard() {
   const [buildFrontend, setBuildFrontend] = useState(false)
   const [frontendDirectory, setFrontendDirectory] = useState('frontend')
   const [health, setHealth] = useState<Health | null>(null)
+  const [backendDown, setBackendDown] = useState(false)
+  const [setupIssues, setSetupIssues] = useState<Record<string,string>>({})
+  const [error, setError] = useState('')
+  const handleFailure = useCallback((failure: unknown) => {
+    const issue = readinessFailure(failure)
+    if (issue?.component === 'backend') {
+      setHealth(null); setBackendDown(true); setError('')
+    } else if (issue) {
+      setSetupIssues(previous => ({...previous,[issue.component]:issue.message})); setError('')
+    } else {
+      setError(failure instanceof Error ? failure.message : 'Request failed')
+    }
+  }, [])
   const [report, setReport] = useState<Report | null>(null)
   const [running, setRunning] = useState(false)
-  const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const controlId = useRef<string | null>(null)
@@ -147,15 +152,16 @@ export default function InvestigationDashboard() {
             controlId.current = null; setRunning(false); setControlMessage('')
           }
         }
-      } catch {
+      } catch (failure) {
         // A transient polling failure must not mark an active backend job idle.
+        if (!controller.signal.aborted && readinessFailure(failure)?.component === 'backend') handleFailure(failure)
       } finally {
         if (!controller.signal.aborted) timer = window.setTimeout(() => void poll(), 1500)
       }
     }
     void poll()
     return () => {controller.abort(); window.clearTimeout(timer)}
-  }, [])
+  }, [handleFailure])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -163,15 +169,18 @@ export default function InvestigationDashboard() {
       fetch('/api/repositories', { signal: controller.signal }).then(jsonResponse),
       fetch('/api/health', { signal: controller.signal }).then(jsonResponse),
     ]).then(([catalog, status]) => {
-      setRepositories(catalog.repositories); setHealth(status)
-    }).catch(e => { if (!controller.signal.aborted) setError(String(e)) })
+      setRepositories(catalog.repositories); setHealth(status); setBackendDown(false)
+    }).catch(e => { if (!controller.signal.aborted) handleFailure(e) })
     return () => controller.abort()
-  }, [])
+  }, [handleFailure])
 
   async function refresh() {
     setChecking(true); setError('')
-    try { setHealth(await fetch('/api/health').then(jsonResponse)) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to check setup') }
+    try {
+      const [status, catalog] = await Promise.all([fetch('/api/health').then(jsonResponse),fetch('/api/repositories').then(jsonResponse)])
+      setHealth(status); setRepositories(catalog.repositories); setBackendDown(false)
+    }
+    catch (e) { handleFailure(e) }
     finally { setChecking(false) }
   }
 
@@ -195,7 +204,8 @@ export default function InvestigationDashboard() {
           frontend_directory: frontendDirectory }),
       }).then(jsonResponse)
       setReport(data.report)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
+      if (data.report.status !== 'stopped' && data.report.baseline?.status !== 'error') setSetupIssues({})
+    } catch (e) { handleFailure(e) }
     finally {
       if (requestPending.current === runId) requestPending.current = null
       if (controlId.current === runId) {setRunning(false); controlId.current = null; setControlMessage('')}
@@ -245,7 +255,7 @@ export default function InvestigationDashboard() {
       <div className="header-actions">
       <label className="repository-selector"><span>Repository</span>
         <select value={repository} disabled={running || !repositories.length}
-          onChange={e => { setRepository(e.target.value); setShareWithNebius(false); setReport(null); setError('') }}>
+          onChange={e => { setRepository(e.target.value); setShareWithNebius(false); setReport(null); setError(''); setSetupIssues({}) }}>
           {repositories.map(repo => <option value={repo.id} key={repo.id}>{repo.name}</option>)}
           <option value="local">Local Git repository</option>
         </select>
@@ -311,16 +321,25 @@ export default function InvestigationDashboard() {
     </div></section>
 
     <section className="panel setup-panel" id="readiness"><div className="setup-heading"><div><p className="section-kicker">BEFORE YOU BEGIN</p><h2>Workspace readiness</h2></div>
-      <button className="setup-refresh" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : '↻ Check again'}</button></div>
-      {health ? <><div className="readiness-grid">
-        <div className={`readiness-item ${health.git_available ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">⌘</span><div><strong>Git history</strong><span>{health.git_available ? 'Ready to trace' : 'Git is missing'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
-        <div className={`readiness-item ${health.docker.ready ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">◇</span><div><strong>Docker runner</strong><span>{health.docker.ready ? 'Ready to experiment' : 'Setup needed'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
-        <div className={`readiness-item ${health.nebius_configured ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">✧</span><div><strong>Nebius / Nemotron</strong><span>{health.nebius_configured ? 'Key configured' : 'API key needed'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
+      <button className="setup-refresh" disabled={checking} onClick={() => void refresh()}>{checking ? 'Checking…' : '↻ Check again'}</button></div>
+      <div className="readiness-grid" aria-live="polite">
+        <ReadinessCard name="Git history" icon="⌘"
+          ready={backendDown || setupIssues.git ? false : health ? health.git_available : null}
+          detail={backendDown ? 'Cannot check — backend offline' : setupIssues.git ? 'Git operation failed' : health ? health.git_available ? 'Git installed' : 'Git not found' : 'Checking…'}
+          explanation={backendDown ? undefined : setupIssues.git || (health && !health.git_available ? 'Install Git and make it available on PATH.' : undefined)} />
+        <ReadinessCard name="Docker runner" icon="◇"
+          ready={backendDown || setupIssues.docker ? false : health ? health.docker.ready : null}
+          detail={backendDown ? 'Cannot check — backend offline' : setupIssues.docker || (health && !health.docker.ready) ? 'Runner unavailable' : health ? 'Ready to experiment' : 'Checking…'}
+          explanation={backendDown ? undefined : setupIssues.docker || (health && !health.docker.ready ? health.docker.reason : undefined)} />
+        <ReadinessCard name="Nebius / Nemotron" icon="✧"
+          ready={backendDown || report?.ai_analysis.status === 'unavailable' ? false : health ? health.nebius_configured : null}
+          detail={backendDown ? 'Cannot check — backend offline' : report?.ai_analysis.status === 'unavailable' ? 'AI request failed' : health ? health.nebius_configured ? 'Key configured' : 'API key needed' : 'Checking…'}
+          explanation={backendDown ? undefined : report?.ai_analysis.status === 'unavailable' ? report.ai_analysis.reason : health && !health.nebius_configured ? 'Configure NEBIUS_API_KEY in your local .env.' : undefined} />
       </div>
-        {!health.docker.ready && <p role="status">{health.docker.reason}</p>}
+      {backendDown && <p className="readiness-help">Checks are unavailable because the backend cannot be reached. Start it on port 8000, then choose Check again.</p>}
+      {health && <>
         {repository === 'local' && <p>The selected test runner image and dependencies are checked when you run the investigation.</p>}
-        {!health.nebius_configured && <p>Set NEBIUS_API_KEY in .env for model analysis and proposed repairs. Git evidence can still be collected when Docker is ready.</p>}
-      </> : <p>Checking backend setup…</p>}
+      </>}
     </section>
 
     {running && <p role="status" className="investigation-progress" aria-live="polite">{investigationType === 'reproduce'

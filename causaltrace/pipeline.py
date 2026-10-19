@@ -203,12 +203,16 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                 normalized_directory = selected_directory.relative_to(snapshot.resolve()).as_posix()
                 return run_release(snapshot, normalized_directory, repository_id, reports_root, good_ref, bad_ref,
                     good, bad, revisions, max_repair_attempts, MODEL_CONSENT.get())
-        if repository_id == "local":
-            if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
-                raise ValueError("Reports must be saved outside the investigated repository.")
-            with independent_snapshot(repo) as snapshot:
-                return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
-        return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
+        if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
+            raise ValueError("Reports must be saved outside the investigated repository.")
+        with independent_snapshot(repo) as snapshot:
+            # All worktree registration and cleanup stays outside OneDrive/the source cache.
+            from causaltrace.public_demos import PUBLIC_IDS
+            if repository_id in PUBLIC_IDS:
+                from causaltrace.upstream_projects import profile
+                if git(repo,'remote').splitlines() and git(repo,'remote','get-url','origin') == profile(repository_id)['url']:
+                    git(snapshot,'remote','set-url','origin',profile(repository_id)['url'])
+            return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
     except InvestigationStopped:
         return save_stopped(ACTIVE_CONTROL.get(), repository_id, investigation_type, reports_root, selected_runner)
     finally:

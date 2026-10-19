@@ -1,5 +1,6 @@
 """Control real investigation threads; runners are mocked, never Nebius."""
 import threading
+import subprocess
 from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
@@ -136,3 +137,15 @@ def test_setup_failure_clears_active_job_and_lock(tmp_path):
     status = client.get('/api/investigation-status?control_id='+run_id).json()
     assert not status['active']
     assert status['completed']['report_id'] is None
+
+
+def test_git_operation_failure_identifies_affected_readiness_card(tmp_path):
+    client = TestClient(api.app)
+    with patch.object(api,'ensure_demo',return_value=tmp_path), \
+         patch.object(api,'committed_runner',return_value='pytest'), \
+         patch.object(api,'docker_status',return_value={'ready':True}), \
+         patch.object(api,'run_investigation',side_effect=subprocess.CalledProcessError(128,['git','worktree','add'])):
+        response = client.post('/api/run-investigation',json={})
+    assert response.status_code==500
+    assert response.json()['detail']['component']=='git'
+    assert not api.investigation_lock.locked()

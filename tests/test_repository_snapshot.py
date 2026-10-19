@@ -62,6 +62,24 @@ class SnapshotTests(unittest.TestCase):
             self.assertFalse(snapshot_path.exists())
             self.assertEqual(fingerprint(source), before)
 
+    def test_bundled_repository_worktrees_also_stay_outside_source_cache(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder)/'cached-demo'
+            source.mkdir()
+            self.fixture(source)
+            before = fingerprint(source)
+            original = verifier.run_command
+            def guarded(args,cwd):
+                if 'worktree' in args:
+                    self.assertNotEqual(Path(cwd).resolve(),source.resolve())
+                return original(args,cwd)
+            with patch.object(verifier,'run_pytest',side_effect=trusted_fixture_runner), \
+                 patch.object(verifier,'run_command',side_effect=guarded), contextlib.redirect_stdout(io.StringIO()):
+                report=pipeline.run_investigation(source,'.','config',Path(folder)/'reports','regression')
+            self.assertEqual(report['status'],'completed')
+            self.assertEqual(fingerprint(source),before)
+            self.assertFalse((source/'.git/worktrees').exists())
+
     def test_reports_inside_original_repository_are_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder)

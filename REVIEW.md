@@ -85,3 +85,21 @@ per-test analysis to the recent tested interval. No mode scans the full history
 after finding the transition. All attempted failures, skips and runner errors
 remain visible, even when the selected HEAD passes.
 The 12-file source-context cap is separate from historical test execution.
+
+## Public repository cleanup and readiness
+
+Live API checks reproduced Windows permission errors when removing Git worktree
+metadata from the OneDrive-hosted humanize and Commons CSV caches. All modes now
+use independent temporary snapshots for bundled/public repositories as well as
+local repositories. Worktree metadata stays out of the source cache; original
+upstream commit IDs, author dates and provenance are retained.
+
+Two-revision Docker checks completed without that Git error for all four public
+projects. Baselines: humanize 856 passed; PySnooper 28 passed; Cookiecutter 294
+passed and 1 skipped; Commons CSV 53 passed and 2 skipped. Skips remain incomplete
+coverage, not verified repairs. These checks made no AI requests.
+
+Readiness now shows a visible cross on the affected component, distinguishes
+repository Git-operation errors from Git installation, and marks all checks
+unavailable when the backend cannot be reached. Component failures are explained
+inside their cards instead of a separate error banner.

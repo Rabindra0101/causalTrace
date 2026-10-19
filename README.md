@@ -48,6 +48,14 @@ These controls require the same running backend process; restarting it ends the 
 Refreshing or reopening the page reconnects to an active investigation and restores
 its controls. The page loads the saved report when that investigation finishes.
 Only one investigation runs at a time; additional run requests return HTTP 409.
+Readiness cards show ✓ for available checks and × for missing or failed components.
+If the backend is unreachable, all three checks show unavailable rather than stale
+green results. Git readiness checks installation; a repository-operation failure
+is shown separately on the Git card.
+
+All repository investigations use independent temporary snapshots, including
+bundled and public upstream repositories. Git worktree registration and cleanup
+stay outside the source cache, avoiding writes to OneDrive-hosted Git metadata.
 
 Open **http://127.0.0.1:8000**. The backend serves `frontend/dist` after a build;
 restart it when that build changes. For frontend development, run `npm.cmd run dev`

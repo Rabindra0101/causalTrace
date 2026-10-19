@@ -1,0 +1,10 @@
+.readiness-item { align-items: flex-start; }
+.readiness-copy { flex: 1; min-width: 0; }
+.readiness-copy small { display: block; margin-top: 8px; font-size: 1rem; line-height: 1.6; color: #6e3934; overflow-wrap: anywhere; }
+.readiness-mark { display: grid; place-items: center; flex: 0 0 32px; min-width: 32px; height: 32px; margin-left: auto; border: 2px solid currentColor; border-radius: 50%; font-size: 1.5rem; line-height: 1; font-weight: 800; }
+.mark-ready { color: #246342; background: #e2f3e7; }
+.mark-down { color: #a52c26; background: #ffebe7; }
+.mark-checking { color: #5b6268; background: #f1f3f4; }
+.readiness-item.needs-setup { background: #fff5f2; border: 2px solid #c8675d; }
+.readiness-item.needs-setup .readiness-icon { background: #fbe2dc; color: #922e28; }
+.readiness-item.needs-setup .readiness-copy > span { color: #88372f; }

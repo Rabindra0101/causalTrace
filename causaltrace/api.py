@@ -159,8 +159,15 @@ def run(request: InvestigationRequest):
     except (ValueError, RuntimeError) as error:
         raise HTTPException(400, str(error)) from error
     except (OSError, subprocess.SubprocessError) as error:
-        log.exception("Git investigation failed")
-        raise HTTPException(500, "Git investigation failed. Check Git installation and server logs.") from error
+        log.exception("Investigation operation failed")
+        command = getattr(error, 'cmd', None)
+        executable = str(command[0]) if isinstance(command, (list,tuple)) and command else str(getattr(error,'filename',''))
+        component = {'git':'git','git.exe':'git','docker':'docker','docker.exe':'docker'}.get(Path(executable).name.lower())
+        detail = {'code':'investigation_operation_failed',
+                  'message':'An investigation operation failed. Check the backend terminal for details.'}
+        if component:
+            detail.update(component=component, message=f'A {component.capitalize()} operation failed for this repository. Check the backend terminal for the failed command and its error.')
+        raise HTTPException(500, detail) from error
     finally:
         ACTIVE_CONTROL.reset(control_token)
         with controls_lock:
