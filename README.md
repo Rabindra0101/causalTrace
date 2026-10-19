@@ -87,6 +87,9 @@ and a relative, self-contained test directory (default `.`). Local repositories
 must have a committed HEAD and no tracked edits. Select a supported test runner
 or detect it from committed project manifests. Dependencies must be installed
 in its Docker image. See [MULTILANGUAGE.md](MULTILANGUAGE.md) for setup.
+For non-Python projects, optional preparation can download dependencies and
+build frontend assets in disposable containers before the offline test run.
+The report shows preparation errors separately from test failures.
 Original source files remain unchanged. Local results include boundary commit
 IDs and test evidence; the interactive demo timeline is available for demos only.
 

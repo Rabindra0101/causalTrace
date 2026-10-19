@@ -7,8 +7,8 @@ from pathlib import Path
 from causaltrace.build_doctor import BuildRequest, SourceFile, investigate, verify
 from causaltrace.evidence_graph import build_investigation_graph
 from causaltrace.nemotron_client import configuration
-from causaltrace.test_runner import is_failure
-from causaltrace.language_runner import RUNNER, IMAGE, committed_runner, is_test_path
+from causaltrace.test_runner import is_failure, setup_issues
+from causaltrace.language_runner import RUNNER, IMAGE, PREPARATION, committed_runner, is_test_path
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
 
 
@@ -79,12 +79,17 @@ def persist(report, reports_root):
 
 
 def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full",
-                      test_runner="auto", runner_image=None):
+                      test_runner="auto", runner_image=None, install_dependencies=False,
+                      build_frontend=False, frontend_directory="frontend"):
     runner_token = RUNNER.set(committed_runner(repo, directory, test_runner))
     image_token = IMAGE.set(runner_image)
+    preparation_token = PREPARATION.set({"install_dependencies": install_dependencies,
+                                        "build_frontend": build_frontend, "frontend_directory": frontend_directory}
+                                       if install_dependencies or build_frontend else None)
     try:
         return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
     finally:
+        PREPARATION.reset(preparation_token)
         IMAGE.reset(image_token)
         RUNNER.reset(runner_token)
 
@@ -109,16 +114,20 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
         "repair": None, "ai_analysis": {"status": "not_run"},
         "investigation_type": investigation_type,
         "test_runner": RUNNER.get(),
+        "preparation_options": PREPARATION.get(),
     }
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
     if not is_failure(baseline):
+        report["setup_issues"] = setup_issues(baseline)
         report["status"] = "no_failure" if baseline.get("passed") else "execution_error"
         report["reason"] = ("Committed tests pass." if baseline.get("passed") else
                             "No tests were collected. Choose a directory containing committed tests for the selected runner."
                             if baseline.get("return_code") in (0, 5) and not baseline.get("test_ids") else
                             "The baseline produced no valid test outcome. Expand test output for missing dependencies, build errors or runner setup details.")
+        if report["setup_issues"]:
+            report["reason"] = " ".join(issue["message"] for issue in report["setup_issues"])
         return persist(report, reports_root)
     if investigation_type == "reproduce":
         report["status"] = "completed"

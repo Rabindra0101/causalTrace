@@ -4,11 +4,36 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
-from causaltrace.language_runner import DRIVER, RUNNER, IMAGE, MULTILANG_IMAGE
+from causaltrace.language_runner import DRIVER, PREPARE_DRIVER, PREPARATION, RUNNER, IMAGE, MULTILANG_IMAGE
 
 DOCKER_IMAGE = "causaltrace-test-runner:local"
 TEST_TIMEOUT = 60
 SUMMARY_MARKER = "CAUSALTRACE_TEST_SUMMARY="
+PREPARATION_TIMEOUT = 300
+
+
+def setup_issues(result):
+    """Explain infrastructure output without treating it as a tested regression."""
+    if not result.get("execution_error"):
+        return []
+    output = result.get("output", "").lower()
+    issues = []
+    if any(value in output for value in ("goproxy=off", "cannot find module", "cannot find package", "could not resolve dependencies", "offline mode", "no such file or directory: './node_modules")):
+        issues.append({"code": "missing_dependencies", "message": "Required project dependencies are missing from the runner.",
+                       "action": "Enable dependency downloads during preparation, or select a dependency image prepared for this project."})
+    if "no matching files found" in output and ("frontend/dist" in output or "pattern " in output):
+        issues.append({"code": "missing_build_assets", "message": "Required embedded build assets are missing.",
+                       "action": "Enable frontend build preparation and set the frontend directory containing package.json."})
+    if any(value in output for value in ("pkg-config", "webkit2gtk", "gtk+-3.0", "c compiler", "gcc: executable file not found")):
+        issues.append({"code": "native_dependencies", "message": "The project needs native compiler or desktop libraries.",
+                       "action": "Select a prepared runner image with the required Linux native libraries. Windows-only tests need a compatible test target."})
+    if result.get("return_code") == 5 or (not result.get("test_ids") and any(value in output for value in ("[no test files]", "no tests found", "no tests ran", 'tests="0"'))):
+        issues.append({"code": "no_tests", "message": "No runnable tests were collected.",
+                       "action": "Choose a directory with committed tests for the selected runner. Preparation does not create tests."})
+    if result.get("preparation", {}).get("status") == "failed":
+        issues.insert(0, {"code": "preparation_failed", "message": "Project preparation failed before tests started.",
+                          "action": "Expand the preparation output to identify the failed dependency or build step."})
+    return issues
 
 # This plugin reports collection/outcomes so Docker errors cannot masquerade as tests.
 PYTEST_SCRIPT = """
@@ -146,8 +171,11 @@ def run_pytest(repo_path: Path) -> dict:
     runner = RUNNER.get()
     image = IMAGE.get() or (DOCKER_IMAGE if runner == "pytest" else MULTILANG_IMAGE)
     script = ["python", "-c", PYTEST_SCRIPT] if runner == "pytest" else ["python", "-c", DRIVER, runner]
-    command = [
-        "docker", "run", "--rm", "--name", name, "--network", "none",
+    preparation = PREPARATION.get()
+    volume = name + "-prepared"
+    preparation_result = None
+    common = [
+        "docker", "run", "--rm",
         "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
         "--memory", "256m" if runner == "pytest" else "1g",
         "--cpus", "1" if runner == "pytest" else "2",
@@ -156,17 +184,52 @@ def run_pytest(repo_path: Path) -> dict:
         "-e", "PYTHONDONTWRITEBYTECODE=1",
         "-e", "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
         "--mount", f"type=bind,source={repo_path},target=/workspace,readonly",
-        "-w", "/workspace", image, *script,
+        "-w", "/workspace",
     ]
     try:
+        if preparation:
+            if runner == "pytest":
+                return execution_error("Automatic preparation is available for Node, Vitest, Jest, Maven and Go. For pytest use a prepared Python image.")
+            created = subprocess.run(["docker", "volume", "create", "--label", "causaltrace.temporary=true", volume],
+                                     capture_output=True, text=True, timeout=15)
+            if created.returncode:
+                return execution_error("Unable to create temporary project preparation storage.")
+            mount = ["--mount", f"type=volume,source={volume},target=/prepared"]
+            prepared = subprocess.run(
+                [*common, "--name", name + "-prepare", "--network", "bridge" if preparation["install_dependencies"] else "none",
+                 *mount, image, "python", "-c", PREPARE_DRIVER, runner, json.dumps(preparation)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=PREPARATION_TIMEOUT)
+            preparation_result = {"status": "completed" if prepared.returncode == 0 else "failed",
+                                  "return_code": prepared.returncode, "output": prepared.stdout + "\n" + prepared.stderr}
+            if prepared.returncode:
+                return {**execution_error(preparation_result["output"], prepared.returncode), "preparation": preparation_result}
+            script += ["--prepared"]
+        else:
+            mount = []
+        command = [*common, "--name", name, "--network", "none", *mount, image, *script]
         result = subprocess.run(
             command, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=TEST_TIMEOUT, check=False,
         )
-        return parse_result(result.returncode, result.stdout, result.stderr)
+        evidence = parse_result(result.returncode, result.stdout, result.stderr)
+        if preparation_result:
+            evidence["preparation"] = preparation_result
+        return evidence
     except subprocess.TimeoutExpired:
-        return execution_error(f"Test execution exceeded {TEST_TIMEOUT} seconds.")
+        preparing = preparation and preparation_result is None
+        evidence = execution_error("Project preparation exceeded 300 seconds." if preparing else "Test execution exceeded 60 seconds.")
+        if preparing:
+            evidence["preparation"] = {"status": "failed", "return_code": -1, "output": evidence["output"]}
+        elif preparation_result:
+            evidence["preparation"] = preparation_result
+        return evidence
     except OSError:
         return execution_error("Unable to launch Docker. Check Docker Desktop.")
     finally:
         cleanup_container(name)
+        if preparation:
+            cleanup_container(name + "-prepare")
+            try:
+                subprocess.run(["docker", "volume", "rm", volume], capture_output=True, timeout=15, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass

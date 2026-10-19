@@ -6,6 +6,7 @@ from pathlib import Path
 
 RUNNER = ContextVar("test_runner", default="pytest")
 IMAGE = ContextVar("runner_image", default=None)
+PREPARATION = ContextVar("project_preparation", default=None)
 RUNNERS = ("auto", "pytest", "node", "vitest", "jest", "maven", "go")
 MULTILANG_IMAGE = "causaltrace-multilang-runner:local"
 
@@ -44,8 +45,10 @@ def is_test_path(path):
 # Executed by Python inside the multilingual image, never on the host.
 DRIVER = r'''
 import glob, json, os, pathlib, shutil, subprocess, sys, xml.etree.ElementTree as ET
-root = pathlib.Path('/tmp/project')
-shutil.copytree('/workspace', root, ignore=shutil.ignore_patterns('.git', 'node_modules', 'target', 'dist', '.env', '.env.*'))
+prepared = '--prepared' in sys.argv
+root = pathlib.Path('/prepared/project') if prepared else pathlib.Path('/tmp/project')
+if not prepared:
+    shutil.copytree('/workspace', root, ignore=shutil.ignore_patterns('.git', 'node_modules', 'target', '.env', '.env.*'))
 os.chdir(root)
 runner = sys.argv[1]
 env = dict(os.environ, HOME='/tmp', GOCACHE='/tmp/go-build', GOPATH='/tmp/go', GOTOOLCHAIN='local', GOPROXY='off', GOSUMDB='off')
@@ -54,10 +57,12 @@ def record(identity, outcome):
     summary['test_ids'].append(identity)
     summary[outcome + '_ids'].append(identity)
 try:
-    if pathlib.Path('/opt/node_modules').is_dir():
+    if not (root / 'node_modules').exists() and pathlib.Path('/opt/node_modules').is_dir():
         shutil.copytree('/opt/node_modules', root / 'node_modules', symlinks=True)
     if pathlib.Path('/opt/go-mod').is_dir():
         env['GOMODCACHE'] = '/opt/go-mod'
+    if prepared:
+        env['GOMODCACHE'] = '/prepared/go-mod'
     if runner == 'node':
         command = ['node', '--test', '--test-reporter=junit']
     elif runner == 'vitest':
@@ -65,9 +70,14 @@ try:
     elif runner == 'jest':
         command = ['./node_modules/.bin/jest', '--runInBand', '--json', '--outputFile=/tmp/results.json']
     elif runner == 'maven':
-        if pathlib.Path('/opt/maven-repository').is_dir():
+        if prepared:
+            repository = '/prepared/m2'
+        elif pathlib.Path('/opt/maven-repository').is_dir():
             shutil.copytree('/opt/maven-repository', '/tmp/m2')
-        command = ['mvn', '-o', '-B', '-Dmaven.repo.local=/tmp/m2', 'test']
+            repository = '/tmp/m2'
+        else:
+            repository = '/tmp/m2'
+        command = ['mvn', '-o', '-B', '-Dmaven.repo.local=' + repository, 'test']
     else:
         command = ['go', 'test', '-json', '-count=1', './...']
     result = subprocess.run(command, env=env, capture_output=True, text=True, errors='replace')
@@ -101,4 +111,51 @@ try:
 except (OSError, ValueError, ET.ParseError) as error:
     print('Test runner could not produce structured evidence: ' + str(error), file=sys.stderr)
     sys.exit(125)
+'''
+
+
+PREPARE_DRIVER = r'''
+import json, os, pathlib, shutil, subprocess, sys
+options = json.loads(sys.argv[2])
+root = pathlib.Path('/prepared/project')
+shutil.copytree('/workspace', root, ignore=shutil.ignore_patterns('.git', 'node_modules', 'target', '.env', '.env.*'))
+protected = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()
+             and not {'dist', 'node_modules', 'target'} & set(p.relative_to(root).parts)
+             and (p.suffix in {'.py', '.go', '.java', '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'}
+                  or p.name in {'go.mod', 'pom.xml', 'package.json'})}
+env = dict(os.environ, HOME='/tmp', GOCACHE='/tmp/go-build', GOPATH='/tmp/go', GOTOOLCHAIN='local', GOMODCACHE='/prepared/go-mod')
+env.update(GOPROXY='https://proxy.golang.org' if options['install_dependencies'] else 'off', GOSUMDB='sum.golang.org' if options['install_dependencies'] else 'off')
+def execute(command, cwd):
+    print('Preparing: ' + ' '.join(command), flush=True)
+    result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, errors='replace')
+    print(result.stdout, flush=True)
+    print(result.stderr, file=sys.stderr, flush=True)
+    if result.returncode:
+        raise SystemExit(result.returncode)
+runner = sys.argv[1]
+if pathlib.Path('/opt/go-mod').is_dir():
+    shutil.copytree('/opt/go-mod', '/prepared/go-mod')
+if pathlib.Path('/opt/maven-repository').is_dir():
+    shutil.copytree('/opt/maven-repository', '/prepared/m2')
+if pathlib.Path('/opt/node_modules').is_dir():
+    shutil.copytree('/opt/node_modules', root / 'node_modules', symlinks=True)
+if options['install_dependencies']:
+    if runner == 'go':
+        execute(['go', 'mod', 'download', 'all'], root)
+    elif runner == 'maven':
+        execute(['mvn', '-B', '-Dmaven.repo.local=/prepared/m2', '-DskipTests', 'test-compile', 'dependency:go-offline'], root)
+    elif (root / 'package.json').is_file():
+        execute(['npm', 'ci', '--no-audit', '--no-fund'], root)
+if options['build_frontend']:
+    frontend = (root / options['frontend_directory']).resolve()
+    if not frontend.is_relative_to(root) or not (frontend / 'package.json').is_file():
+        raise SystemExit('Frontend directory must contain a committed package.json inside the project.')
+    if options['install_dependencies'] and frontend != root:
+        execute(['npm', 'ci', '--no-audit', '--no-fund'], frontend)
+    execute(['npm', 'run', 'build'], frontend)
+if any(not p.is_file() or p.read_bytes() != content for p, content in protected.items()):
+    raise SystemExit('Preparation changed committed source or test files. Keep build outputs separate from committed source.')
+for report in root.glob('**/target/surefire-reports'):
+    shutil.rmtree(report)
+print('Project preparation completed.', flush=True)
 '''

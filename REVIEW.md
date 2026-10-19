@@ -1,5 +1,21 @@
 # Submission readiness review
 
+## Project preparation update — October 18, 2026
+
+- Added opt-in dependency downloads and frontend builds in disposable per-run
+  volumes. A separate network-disabled container executes the actual tests.
+- Verified a downloaded Go module can be used in offline tests, frontend output
+  satisfies Go embed requirements, and preparation failures cannot verify tests.
+- Verified source/test rewrites during preparation are rejected, the original
+  fixture files stay unchanged, `.env` is not copied, and volumes are cleaned up.
+- Added actionable setup diagnostics and separate preparation output in reports.
+- Added an optional Linux GTK/WebKit runner for Wails v2-compatible native code;
+  it does not provide a desktop display or Windows-only build support.
+- Built that image and verified an offline Go/CGO fixture links and calls GTK
+  and WebKit version functions without starting a desktop application.
+- Changes and validation fixtures are confined to CausalTrace. No FileSync files
+  were modified or tested as part of this update.
+
 ## Multilingual runner update — October 18, 2026
 
 - Added committed-manifest detection and explicit pytest, Node, Vitest, Jest,

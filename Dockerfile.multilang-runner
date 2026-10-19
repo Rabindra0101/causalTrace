@@ -11,5 +11,6 @@ COPY --from=maven /opt/java/openjdk /opt/java/openjdk
 COPY --from=maven /usr/share/maven /usr/share/maven
 ENV PATH="/usr/local/go/bin:/opt/java/openjdk/bin:/usr/share/maven/bin:${PATH}" JAVA_HOME=/opt/java/openjdk
 RUN useradd --create-home --uid 10001 runner
+RUN mkdir /prepared && chown runner:runner /prepared
 USER runner
 WORKDIR /workspace

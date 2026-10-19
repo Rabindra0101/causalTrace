@@ -6,7 +6,7 @@ import RegressionTimeline from './RegressionTimeline'
 import BuildDoctor from './BuildDoctor'
 import './InvestigationDashboard.css'
 
-type TestRun = { status: string; return_code: number; output: string }
+type TestRun = { status: string; return_code: number; output: string; preparation?: TestRun }
 type Experiment = {
   commit: string; outcome: string; reason: string
   before?: TestRun; after?: TestRun
@@ -24,6 +24,7 @@ type Report = {
   ai_analysis: { status: string; model?: string; hypothesis?: string; reason?: string }
   repair?: Repair | null
   source_evidence?: { path: string; content: string }[]
+  setup_issues?: { code: string; message: string; action: string }[]
   evidence_graph?: {
     nodes: { id: string; type: string; data: Record<string, unknown> }[]
     edges: { source: string; target: string; relationship: string }[]
@@ -67,6 +68,9 @@ export default function InvestigationDashboard() {
   const [investigationType, setInvestigationType] = useState('full')
   const [testRunner, setTestRunner] = useState('auto')
   const [runnerImage, setRunnerImage] = useState('')
+  const [installDependencies, setInstallDependencies] = useState(false)
+  const [buildFrontend, setBuildFrontend] = useState(false)
+  const [frontendDirectory, setFrontendDirectory] = useState('frontend')
   const [health, setHealth] = useState<Health | null>(null)
   const [report, setReport] = useState<Report | null>(null)
   const [running, setRunning] = useState(false)
@@ -99,7 +103,10 @@ export default function InvestigationDashboard() {
         body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
           test_directory: testDirectory, investigation_type: investigationType,
           test_runner: repository === 'local' ? testRunner : 'pytest',
-          runner_image: repository === 'local' ? runnerImage.trim() || null : null }),
+          runner_image: repository === 'local' ? runnerImage.trim() || null : null,
+          install_dependencies: repository === 'local' && installDependencies,
+          build_frontend: repository === 'local' && buildFrontend,
+          frontend_directory: frontendDirectory }),
       }).then(jsonResponse)
       setReport(data.report)
     } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
@@ -139,6 +146,15 @@ export default function InvestigationDashboard() {
         <label className="repository-selector"><span>Project / test directory (relative to repository)</span>
           <input value={testDirectory} disabled={running} placeholder="."
             onChange={e => { setTestDirectory(e.target.value); setReport(null) }} /></label>
+        <fieldset className="preparation-options" disabled={running}>
+          <legend>Project preparation (optional)</legend>
+          <label><input type="checkbox" checked={installDependencies} onChange={e => setInstallDependencies(e.target.checked)} /> Download project dependencies</label>
+          <p>Allows network access during preparation, including dependency install scripts. Actual tests run offline. Use only with repositories you trust.</p>
+          <label><input type="checkbox" checked={buildFrontend} onChange={e => setBuildFrontend(e.target.checked)} /> Build frontend assets before testing</label>
+          {buildFrontend && <label className="repository-selector"><span>Frontend directory (relative to project)</span>
+            <input value={frontendDirectory} placeholder="frontend" onChange={e => setFrontendDirectory(e.target.value)} /></label>}
+          <p>Preparation and builds use a disposable copy for each tested revision. Your repository is not modified. Python uses prepared images instead.</p>
+        </fieldset>
       </>}
       <label className="repository-selector"><span>Investigation type</span>
         <select value={investigationType} disabled={running}
@@ -169,7 +185,7 @@ export default function InvestigationDashboard() {
 
     {!report && !running && <section className="panel"><h2>Start with the configuration regression</h2>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
-      <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Commit or stash tracked edits first. Select the project directory containing its manifest, sources and tests. Dependencies must be prepared in the runner image; test containers have no network.</p>
+      <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Commit or stash tracked edits first. Select the project directory containing its manifest, sources and tests. For non-Python projects, preparation can install dependencies and build assets in a disposable copy. Actual tests run offline.</p>
       <p>Full investigations send committed source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
     </section>}
 
@@ -179,7 +195,12 @@ export default function InvestigationDashboard() {
         {report.test_runner && <p>Test runner: <strong>{report.test_runner}</strong></p>}
         <a className="report-download" href={`/api/investigation?report_id=${report.id}`} download={`causaltrace-${report.id}.json`}>Download this evidence report</a>
       </section>
-      <section className="panel"><h2>1. Baseline tests</h2><Output title="Baseline test output" run={report.baseline} /></section>
+      {Boolean(report.setup_issues?.length) && <section className="panel"><h2>Setup needs attention</h2>
+        {report.setup_issues?.map(issue => <article key={issue.code}><h3>{issue.message}</h3><p>{issue.action}</p></article>)}
+      </section>}
+      <section className="panel"><h2>1. Baseline tests</h2>
+        <Output title="Project preparation output" run={report.baseline.preparation} />
+        <Output title="Baseline test output" run={report.baseline} /></section>
       {report.regression && <section className="panel"><h2>2. Regression boundary</h2>
         <p>Boundary: {report.regression.confirmed ? 'confirmed by historical tests' : 'inconclusive'}</p>
         {report.regression.suspected_commit && <p>Breaking commit: <code>{report.regression.suspected_commit}</code></p>}
@@ -193,7 +214,7 @@ export default function InvestigationDashboard() {
         <div className="experiment-grid"><ExperimentCard title="Suspected breaking change" experiment={report.experiments.commit_reversal} />
           <ExperimentCard title="Alternative: latest commit" experiment={report.experiments.alternative_reversal} /></div>
       </section>}
-      {(!report.investigation_type || report.investigation_type === 'full') && <><section className="panel"><h2>4. Nemotron analysis <span className="run-badge">{report.ai_analysis.status}</span></h2>
+      {(!report.investigation_type || report.investigation_type === 'full') && report.ai_analysis.status !== 'not_run' && <><section className="panel"><h2>4. Nemotron analysis <span className="run-badge">{report.ai_analysis.status}</span></h2>
         {report.ai_analysis.reason && <p role="status">{report.ai_analysis.reason}</p>}
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.ai_analysis.hypothesis ?? 'No model analysis was performed for this run.'}</ReactMarkdown>
         {report.source_evidence && <details><summary>Source files supplied to Nemotron</summary>{report.source_evidence.map(file => <div key={file.path}><h3>{file.path}</h3><pre className="run-output">{file.content}</pre></div>)}</details>}

@@ -17,6 +17,9 @@ def main():
     parser.add_argument("--test-dir", default=".", help="Test directory relative to --repo")
     parser.add_argument("--test-runner", choices=RUNNERS, default="auto")
     parser.add_argument("--runner-image", help="Prepared Docker image containing project test dependencies")
+    parser.add_argument("--install-dependencies", action="store_true", help="Allow dependency downloads in a preparation container")
+    parser.add_argument("--build-frontend", action="store_true", help="Build frontend assets before offline tests")
+    parser.add_argument("--frontend-directory", default="frontend", help="Relative frontend directory, or . for project root")
     args = parser.parse_args()
     repo = args.repo.resolve() if args.repo else ensure_demo(args.repository)
     directory = args.test_dir if args.repo else "."
@@ -30,6 +33,8 @@ def main():
         "local" if args.repo else args.repository,
         Path(__file__).resolve().parent.parent / "reports",
         test_runner=runner, runner_image=args.runner_image,
+        install_dependencies=args.install_dependencies, build_frontend=args.build_frontend,
+        frontend_directory=args.frontend_directory,
     )
     print(json.dumps({"id": report["id"], "status": report["status"],
                       "reason": report.get("reason"),

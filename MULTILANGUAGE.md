@@ -39,10 +39,67 @@ the image selected for that run and reports its name if missing.
 Test containers run without network, with a read-only repository mount, a
 non-root user, resource limits and a disposable writable copy in `/tmp/project`.
 They do not read the host's `node_modules`, Maven cache, Go module cache or `.env`.
-Install dependencies into a project-specific image **before** investigating.
+Either enable disposable preparation below or install dependencies into a
+project-specific image **before** investigating.
 The image cache must include dependencies needed by all tested revisions.
 Missing dependencies, compiler failures without test evidence, skipped-only
 suites and zero-test suites cannot verify a repair.
+
+## Automatic project preparation
+
+Under **Local Git repository**, two optional controls are available for non-Python
+runners:
+
+- **Download project dependencies** enables network access in a separate
+  preparation container: `go mod download all`, `npm ci`, or Maven offline-cache
+  preparation. npm requires a committed lockfile. Dependency installation can
+  execute project/package scripts; enable it for trusted repositories only.
+- **Build frontend assets before testing** runs `npm run build` in the selected
+  relative frontend directory (default `frontend`, or `.` for the project root).
+  With dependency downloads enabled it first runs `npm ci` there.
+
+Every baseline, historical, reversal and repair test gets a new disposable
+project copy and Docker volume. Preparation can download dependencies only when
+the download control is enabled. Actual tests run in a second container with
+`--network none`. Go modules, Maven dependencies, node_modules and generated
+assets carry over through that private volume. Containers and volumes are
+removed after success, failure or timeout. Original checkout files and `.env`
+remain unchanged; `.env` is excluded from the disposable copy as well.
+
+Preparation must preserve committed implementation/test source and project
+manifests. Builds that rewrite those files are rejected. Build into generated
+output folders instead. Committed `dist` assets are retained when preparation
+is disabled; freshly generated assets are retained when it is enabled.
+
+Preparation has a five-minute timeout per test execution; actual tests retain
+their one-minute timeout. A history search can therefore take several minutes.
+Private package registries, additional code generators, OS-specific builds and
+unavailable historical dependencies may still need a custom prepared image.
+Tests are not invented when the repository has none.
+
+The report separates preparation output from test output and gives specific
+actions for missing dependencies, embedded assets, native libraries and tests.
+
+```powershell
+.\.venv\Scripts\python.exe -m causaltrace.main --repo 'C:\projects\app' --test-runner go --install-dependencies --build-frontend --frontend-directory frontend
+```
+
+### Wails v2 / native Go projects
+
+An optional image includes Linux GTK/WebKit development libraries and the
+`webkit2_41` Go build tag described by [Wails](https://wails.io/docs/gettingstarted/installation/):
+
+```powershell
+docker build -f Dockerfile.multilang-runner -t causaltrace-multilang-runner:local .
+docker build -f Dockerfile.wails-runner -t causaltrace-wails-runner:local .
+```
+
+Select `causaltrace-wails-runner:local` as **Prepared runner image**, choose Go,
+enable dependency downloads and frontend building, and set the frontend folder.
+This image supports compilation of Linux-compatible native code; it does not
+provide a desktop display or make Windows-only code run on Linux. Actual tests
+must already exist. All files and Dockerfiles for this integration live in
+CausalTrace; no changes to the investigated project are required for setup.
 
 Example Node dependency image, saved as `Dockerfile.causaltrace` in the target
 project directory containing `package-lock.json`:
@@ -68,6 +125,10 @@ The runner copies `/opt/node_modules` into the disposable project. Vitest/Jest
 configuration and any required TypeScript transformer must be committed. The
 project, dependency copy, build caches and output must fit the 512 MiB temporary
 filesystem; each run has a 60-second timeout and a 1 GiB memory limit.
+With automatic preparation, project files/dependencies use a disposable Docker
+volume instead; runtime temporary caches still use the 512 MiB filesystem.
+Rebuild custom images from the updated base before using preparation, so they
+inherit the non-root writable `/prepared` volume directory.
 
 For Go, prepare `/opt/go-mod` with the project's modules in the image:
 
@@ -132,6 +193,12 @@ docker build -t causaltrace-framework-fixtures:local tests/fixtures/multilang
 $env:CAUSALTRACE_FRAMEWORK_TESTS = '1'
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p test_language_runner.py -v
 Remove-Item Env:CAUSALTRACE_FRAMEWORK_TESTS
+$env:CAUSALTRACE_PREPARATION_TESTS = '1'
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_project_preparation.py -v
+Remove-Item Env:CAUSALTRACE_PREPARATION_TESTS
+$env:CAUSALTRACE_WAILS_TESTS = '1'
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_project_preparation.py -v
+Remove-Item Env:CAUSALTRACE_WAILS_TESTS
 ```
 
 Adapter tests use structured fixture reports for every supported framework. The
