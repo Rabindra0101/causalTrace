@@ -53,7 +53,7 @@ function Output({ title, run }: { title: string; run?: TestRun | null }) {
 function ExperimentCard({ title, experiment }: { title: string; experiment?: Experiment }) {
   if (!experiment) return null
   return <article className="experiment-card"><h3>{title}</h3>
-    <span className="run-badge">{experiment.outcome.replaceAll('_', ' ')}</span>
+    <span className={`run-badge outcome-${experiment.outcome}`}>{experiment.outcome.replaceAll('_', ' ')}</span>
     <p><code>{experiment.commit.slice(0, 8)}</code></p><p>{experiment.reason}</p>
     <Output title="Before reversal" run={experiment.before} />
     <Output title="After reversal" run={experiment.after} />
@@ -114,11 +114,27 @@ export default function InvestigationDashboard() {
   }
 
   return <main className="dashboard">
-    <header className="header"><div>
-      <p className="eyebrow">EVIDENCE-DRIVEN REGRESSION INVESTIGATION</p>
-      <h1>CausalTrace</h1>
-      <p className="subtitle">Find the breaking change. Explain it. Test the repair.</p>
-    </div><div className="header-actions">
+    <nav className="workspace-nav" aria-label="Workspace navigation">
+      <a className="workspace-brand" href="#top"><span className="brand-symbol" aria-hidden="true">⌘</span>CausalTrace<span className="brand-tag">LAB</span></a>
+      <div><a href="#investigation">Investigate</a><a href="#readiness">Readiness</a><span className="local-label">Local workspace</span></div>
+    </nav>
+    <header className="header" id="top"><div className="hero-copy">
+      <p className="eyebrow"><span aria-hidden="true" /> EVIDENCE, NOT GUESSWORK</p>
+      <h1>Find the change.<br /><span>Prove the fix.</span></h1>
+      <p className="subtitle">Turn a failing test into a clear trail of evidence.<br className="desktop-break" /> Trace the regression, challenge the cause, and test the repair.</p>
+      <div className="language-chips" aria-label="Supported languages"><span>Python</span><span>JavaScript / TS</span><span>Java</span><span>Go</span></div>
+    </div>
+    <div className="trace-art" aria-hidden="true">
+      <div className="trace-orbit orbit-one" /><div className="trace-orbit orbit-two" />
+      <svg className="trace-lines" viewBox="0 0 400 260" fill="none"><path d="M65 50V145Q65 180 100 180H300" stroke="#009b87" strokeWidth="3" /><path d="M65 85H210Q245 85 245 120V215" stroke="#8660cf" strokeWidth="3" strokeDasharray="6 7" /><circle cx="65" cy="50" r="8" fill="#009b87" /><circle cx="245" cy="215" r="8" fill="#8660cf" /><circle cx="300" cy="180" r="8" fill="#ef875e" /></svg>
+      <div className="trace-note note-source"><span>01 / REPRODUCE</span><strong>Start with the failure.</strong><code>test → evidence</code></div>
+      <div className="trace-note note-verify"><span>02 / INVESTIGATE</span><strong>Follow the change.</strong><code>commit → experiment</code></div>
+      <div className="trace-caption">A better answer starts with proof.</div>
+    </div></header>
+
+    <section className="investigation-launch" id="investigation">
+      <div className="launch-heading"><div><p className="section-kicker">YOUR NEXT INVESTIGATION</p><h2>Let’s follow the evidence.</h2></div><span className="workspace-pill">Isolated experiments</span></div>
+      <div className="header-actions">
       <label className="repository-selector"><span>Repository</span>
         <select value={repository} disabled={running || !repositories.length}
           onChange={e => { setRepository(e.target.value); setReport(null); setError('') }}>
@@ -165,16 +181,20 @@ export default function InvestigationDashboard() {
         </select>
       </label>
       <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
-        onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}</button>
-    </div></header>
+        onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}<span aria-hidden="true">↗</span></button>
+    </div></section>
 
-    <section className="panel setup-panel"><h2>Readiness</h2>
-      {health ? <><p>Git: {health.git_available ? 'ready' : 'missing'} · Docker: {health.docker.ready ? 'ready' : 'setup needed'} · Nebius key: {health.nebius_configured ? 'configured' : 'missing'}</p>
+    <section className="panel setup-panel" id="readiness"><div className="setup-heading"><div><p className="section-kicker">BEFORE YOU BEGIN</p><h2>Workspace readiness</h2></div>
+      <button className="doctor-secondary" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : '↻ Check again'}</button></div>
+      {health ? <><div className="readiness-grid">
+        <div className={`readiness-item ${health.git_available ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">⌘</span><div><strong>Git history</strong><span>{health.git_available ? 'Ready to trace' : 'Git is missing'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
+        <div className={`readiness-item ${health.docker.ready ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">◇</span><div><strong>Docker runner</strong><span>{health.docker.ready ? 'Ready to experiment' : 'Setup needed'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
+        <div className={`readiness-item ${health.nebius_configured ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">✧</span><div><strong>Nebius / Nemotron</strong><span>{health.nebius_configured ? 'Key configured' : 'API key needed'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
+      </div>
         {!health.docker.ready && <p role="status">{health.docker.reason}</p>}
         {repository === 'local' && <p>The selected test runner image and dependencies are checked when you run the investigation.</p>}
         {!health.nebius_configured && <p>Set NEBIUS_API_KEY in .env for model analysis and proposed repairs. Git evidence can still be collected when Docker is ready.</p>}
       </> : <p>Checking backend setup…</p>}
-      <button className="doctor-secondary" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : 'Check setup again'}</button>
     </section>
 
     {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
@@ -183,14 +203,15 @@ export default function InvestigationDashboard() {
       : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} This may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}
 
-    {!report && !running && <section className="panel"><h2>Start with the configuration regression</h2>
+    {!report && !running && <section className="panel getting-started"><p className="section-kicker">SMALL DEMO. REAL EVIDENCE.</p><h2>Meet your next “aha” moment.</h2>
+      <div className="workflow-strip"><div><span>01</span><strong>Reproduce</strong><p>See the failure as it happened.</p></div><div><span>02</span><strong>Investigate</strong><p>Find the change. Test the cause.</p></div><div><span>03</span><strong>Verify</strong><p>Let unchanged tests judge the repair.</p></div></div>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
       <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Local investigations use an independent snapshot of committed HEAD and history; uncommitted edits are ignored. The original files, .env and Git worktree metadata are not modified. Select the project directory containing its manifest, sources and tests. Preparation and tests run on disposable copies.</p>
       <p>Full investigations send committed source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
     </section>}
 
     {report && <>
-      <section className="panel"><h2>Run result <span className="run-badge">{report.status.replaceAll('_', ' ')}</span></h2>
+      <section className="panel result-panel"><p className="section-kicker">THE EVIDENCE IS IN</p><h2>Investigation results <span className={`run-badge status-${report.status}`}>{report.status.replaceAll('_', ' ')}</span></h2>
         <p>{report.reason}</p><p className="subtitle">Investigation {report.id.slice(0, 8)} · committed HEAD {report.baseline_revision.slice(0, 8)}</p>
         {report.test_runner && <p>Test runner: <strong>{report.test_runner}</strong></p>}
         <a className="report-download" href={`/api/investigation?report_id=${report.id}`} download={`causaltrace-${report.id}.json`}>Download this evidence report</a>
@@ -233,5 +254,6 @@ export default function InvestigationDashboard() {
       {report.evidence_graph && <section className="panel"><h2>Evidence graph</h2><EvidenceGraph nodes={report.evidence_graph.nodes} edges={report.evidence_graph.edges} /></section>}
     </>}
     <details className="advanced-workspace"><summary>Advanced: investigate pasted logs and Python files</summary><BuildDoctor /></details>
+    <footer className="workspace-footer"><span>CausalTrace <span aria-hidden="true">✧</span> Built around evidence.</span><span>Reproduce. Investigate. Verify.</span></footer>
   </main>
 }
