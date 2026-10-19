@@ -10,6 +10,7 @@ from causaltrace.test_runner import is_failure, same_tests, run_pytest
 from causaltrace.verifier import test_commit, run_command
 from causaltrace.language_runner import is_test_path, RUNNER
 from causaltrace.analysis_policy import settings
+from causaltrace.controlled_process import run as controlled_run
 
 
 def git(repo, *args):
@@ -113,7 +114,7 @@ def reversal_checks(repo, directory, groups):
             run_command(['git','worktree','add','--detach',str(worktree),'HEAD'], repo)
             try:
                 before = run_pytest(worktree/directory)
-                reversed_change = subprocess.run(['git','revert','--no-commit',candidate], cwd=worktree,
+                reversed_change = controlled_run(['git','revert','--no-commit',candidate], cwd=worktree,
                     capture_output=True, text=True, timeout=30)
                 if reversed_change.returncode == 0:
                     after = run_pytest(worktree/directory)
@@ -202,7 +203,7 @@ def repair_loop(repo, directory, baseline, diff, attempts, consent):
     if result['status'] != 'verified':
         result['status'] = 'partial' if any(e['accepted'] for e in result['attempts']) else 'not_verified'
         result['reason'] = 'Repair attempt budget finished or a proposal was unavailable. Remaining failures are unresolved.'
-    exported = subprocess.run(['git', 'diff', '--binary', '--full-index', base_revision, 'HEAD', '--', directory],
+    exported = controlled_run(['git', 'diff', '--binary', '--full-index', base_revision, 'HEAD', '--', directory],
         cwd=repo, capture_output=True, check=True, timeout=30)
     result['patch'] = exported.stdout.decode('utf-8')
     return result

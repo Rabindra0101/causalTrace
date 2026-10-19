@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from causaltrace.public_demos import ROOT, PUBLIC_IDS, metadata
+from causaltrace.controlled_process import run as controlled_run
 
 URLS = {
     'humanize': 'https://github.com/python-humanize/humanize.git',
@@ -20,7 +21,7 @@ def profile(name):
             'image': 'causaltrace-upstream-' + name.replace('_', '-') + ':local'}
 
 def command(repo, *args):
-    return subprocess.run(['git', *args], cwd=repo,
+    return controlled_run(['git', *args], cwd=repo,
         check=True, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180).stdout.strip()
 
 def ensure_upstream(name):

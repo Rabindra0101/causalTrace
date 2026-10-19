@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from causaltrace.build_doctor import SourceFile
 from causaltrace.analysis_policy import settings
+from causaltrace.controlled_process import run as controlled_run
 
 CODE = {'.py', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.java', '.go'}
 CONFIG = {'package.json', 'pyproject.toml', 'requirements.txt', 'pom.xml', 'go.mod', 'tsconfig.json', 'pytest.ini', 'setup.cfg'}
@@ -12,7 +13,7 @@ CONFIG = {'package.json', 'pyproject.toml', 'requirements.txt', 'pom.xml', 'go.m
 def evidence(repo, directory='.', log='', diff=''):
     limits = settings()
     def git(*args):
-        return subprocess.run(['git', *args], cwd=repo, capture_output=True, check=True,
+        return controlled_run(['git', *args], cwd=repo, capture_output=True, check=True,
             text=True, encoding='utf-8', errors='replace', timeout=30).stdout
     prefix = Path(directory).as_posix().rstrip('/')
     prefix = '' if prefix == '.' else prefix + '/'

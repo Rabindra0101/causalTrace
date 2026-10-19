@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from causaltrace.build_doctor import demos
+from causaltrace.controlled_process import run as controlled_run
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _setup_lock = threading.Lock()
@@ -49,7 +50,7 @@ def demo_catalog():
 def git(repo, *args):
     env = dict(os.environ, GIT_AUTHOR_DATE="2026-10-18T12:00:00+00:00",
                GIT_COMMITTER_DATE="2026-10-18T12:00:00+00:00")
-    return subprocess.run(
+    return controlled_run(
         ["git", "-c", "core.autocrlf=false", "-c", "commit.gpgsign=false",
          "-c", "user.name=CausalTrace Demo", "-c", "user.email=demo@causaltrace.local", *args],
         cwd=repo, env=env, check=True, capture_output=True, text=True,

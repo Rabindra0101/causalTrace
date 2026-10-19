@@ -6,12 +6,14 @@ from pathlib import Path
 
 from causaltrace.test_runner import run_pytest, is_failure, same_tests
 from causaltrace.investigation_control import checkpoint, ACTIVE_CONTROL
+from causaltrace.controlled_process import run as controlled_run
 
 
 def run_command(args, cwd):
     if args[:3] == ["git", "worktree", "add"]:
         args = ["git", "-c", "core.autocrlf=false", *args[1:]]
-    return subprocess.run(
+    execute = subprocess.run if args[:3] == ['git','worktree','remove'] else controlled_run
+    return execute(
         args,
         cwd=cwd,
         capture_output=True,
@@ -51,6 +53,9 @@ def test_commit(
 ):
     """Run pytest at a commit in an isolated Git worktree."""
     checkpoint()
+    control = ACTIVE_CONTROL.get()
+    parts = (run_command(['git','show','-s','--format=%H%x1f%h%x1f%s%x1f%aI',commit],repo_path).stdout.strip().split('\x1f',3)
+             if control is not None else None)
     with tempfile.TemporaryDirectory(prefix="causaltrace-") as temp:
         worktree = Path(temp) / "repo"
 
@@ -68,9 +73,7 @@ def test_commit(
 
         try:
             result = run_pytest(worktree / test_directory)
-            control = ACTIVE_CONTROL.get()
             if control is not None:
-                parts = run_command(['git','show','-s','--format=%H%x1f%h%x1f%s%x1f%aI',commit],repo_path).stdout.strip().split('\x1f',3)
                 control.results.append(dict(zip(('commit','short_hash','message','date'),parts),status=result['status'],result=result))
             checkpoint()
             return {

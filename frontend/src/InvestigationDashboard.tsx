@@ -115,10 +115,20 @@ export default function InvestigationDashboard() {
           const reconnected = controlId.current !== status.control_id
           controlId.current = status.control_id
           setRunning(true); setControlState(status.state); setError('')
+          if (status.state === 'paused') {
+            setControlMessage(status.pause_effect === 'provider_not_pausable'
+              ? 'Paused locally. Nebius generation cannot be remotely frozen; its response is held until Resume. Stop closes the request, but provider usage may still be billed.'
+              : status.pause_effect === 'paused' ? 'Paused. Resume continues from this point without restarting the operation.'
+              : 'Pausing active work…')
+          } else if (status.state === 'stopping') {
+            setControlMessage('Cancelling active work now. Cleaning up temporary resources and saving completed results.')
+          } else {
+            setControlMessage('')
+          }
           if (reconnected) {
             setRepository(status.repository_id); setInvestigationType(status.investigation_type)
             setReport(null)
-            setControlMessage('Reconnected to the active investigation. You can pause, resume or stop it here.')
+            if (status.state === 'running') setControlMessage('Reconnected to the active investigation. You can pause, resume or stop it here.')
           }
         } else if (knownId && controlId.current === knownId && (!requestPending.current || status.completed)) {
           if (status.completed?.report_id) {
@@ -203,8 +213,8 @@ export default function InvestigationDashboard() {
       if (controlId.current !== id) return
       setControlState(result.state)
       setControlMessage(action === 'resume' ? 'Investigation resumed.' : action === 'pause'
-        ? 'Pause requested. The current operation finishes first; then work waits until you resume.'
-        : 'Stop requested. Finishing the current operation and saving completed test results.')
+        ? 'Pausing active work now…'
+        : 'Cancelling active work now. Cleaning up temporary resources and saving completed results.')
     } catch (e) {
       if (controlId.current === id) setControlMessage(e instanceof Error ? e.message : 'Unable to control investigation')
     } finally { setControlBusy(false) }

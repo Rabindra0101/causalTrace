@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 from causaltrace.test_runner import run_pytest, is_failure, same_tests
 from causaltrace.nemotron_client import complete
 from causaltrace.language_runner import is_test_path
+from causaltrace.controlled_process import run as controlled_run
 
 
 class SourceFile(BaseModel):
@@ -284,7 +285,7 @@ def verify(report_id: str, repository, directory="."):
             root.chmod(0o755)
 
             worktree = root / "repo"
-            subprocess.run(["git", "-c", "core.autocrlf=false", "worktree", "add", "--detach", str(worktree), "HEAD"],
+            controlled_run(["git", "-c", "core.autocrlf=false", "worktree", "add", "--detach", str(worktree), "HEAD"],
                            cwd=repository, check=True, capture_output=True, timeout=30)
             cleanup.callback(subprocess.run, ["git", "worktree", "remove", "--force", str(worktree)],
                              cwd=repository, check=True, capture_output=True, timeout=30)

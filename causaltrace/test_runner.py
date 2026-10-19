@@ -162,15 +162,16 @@ def cleanup_container(name):
 
 
 def docker_status(image_name=None):
+    from causaltrace.controlled_process import run as controlled_run
     image_name = image_name or IMAGE.get() or (DOCKER_IMAGE if RUNNER.get() == "pytest" else MULTILANG_IMAGE)
     if not shutil.which("docker"):
         return {"ready": False, "reason": "Docker is not installed or is not on PATH."}
     try:
-        daemon = subprocess.run(["docker", "info", "--format", "{{.ServerVersion}}"],
+        daemon = controlled_run(["docker", "info", "--format", "{{.ServerVersion}}"],
                                 capture_output=True, text=True, timeout=5)
         if daemon.returncode:
             return {"ready": False, "reason": "Start Docker Desktop using Linux containers."}
-        image = subprocess.run(["docker", "image", "inspect", image_name],
+        image = controlled_run(["docker", "image", "inspect", image_name],
                                capture_output=True, timeout=5)
         return {
             "ready": image.returncode == 0,
@@ -185,6 +186,7 @@ def docker_status(image_name=None):
 def run_pytest(repo_path: Path) -> dict:
     """Compatibility entry point: execute the runner selected for this investigation."""
     from causaltrace.investigation_control import checkpoint
+    from causaltrace.controlled_process import run as controlled_run
     checkpoint()
     repo_path = Path(repo_path).resolve()
     if not repo_path.is_dir():
@@ -215,12 +217,12 @@ def run_pytest(repo_path: Path) -> dict:
         if preparation:
             if runner == "pytest":
                 return execution_error("Automatic preparation is available for Node, Vitest, Jest, Maven and Go. For pytest use a prepared Python image.")
-            created = subprocess.run(["docker", "volume", "create", "--label", "causaltrace.temporary=true", volume],
+            created = controlled_run(["docker", "volume", "create", "--label", "causaltrace.temporary=true", volume],
                                      capture_output=True, text=True, timeout=15)
             if created.returncode:
                 return execution_error("Unable to create temporary project preparation storage.")
             mount = ["--mount", f"type=volume,source={volume},target=/prepared"]
-            prepared = subprocess.run(
+            prepared = controlled_run(
                 [*common, "--name", name + "-prepare", "--network", "bridge" if preparation["install_dependencies"] else "none",
                  *mount, image, "python", "-c", PREPARE_DRIVER, runner, json.dumps(preparation)],
                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=PREPARATION_TIMEOUT)
@@ -233,7 +235,7 @@ def run_pytest(repo_path: Path) -> dict:
             mount = []
         command = [*common, "--name", name, "--network", "none", *mount, image, *script]
         checkpoint()
-        result = subprocess.run(
+        result = controlled_run(
             command, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=180 if upstream_image else TEST_TIMEOUT, check=False,
         )

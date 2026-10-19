@@ -3,6 +3,7 @@ import json
 import subprocess
 from contextvars import ContextVar
 from pathlib import Path
+from causaltrace.controlled_process import run as controlled_run
 
 RUNNER = ContextVar("test_runner", default="pytest")
 IMAGE = ContextVar("runner_image", default=None)
@@ -19,7 +20,7 @@ def committed_runner(repo, directory, requested, revision="HEAD"):
     prefix = Path(directory).as_posix().strip("/")
     prefix = "" if prefix == "." else prefix + "/"
     def content(name):
-        result = subprocess.run(["git", "show", revision + ":" + prefix + name], cwd=repo,
+        result = controlled_run(["git", "show", revision + ":" + prefix + name], cwd=repo,
                                 capture_output=True, text=True, encoding="utf-8", timeout=15)
         return result.stdout if result.returncode == 0 else None
     if content("go.mod") is not None:

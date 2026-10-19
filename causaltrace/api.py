@@ -18,10 +18,10 @@ from causaltrace.demo_setup import DEMO_IDS, demo_catalog, ensure_demo
 from causaltrace.public_demos import PUBLIC_IDS, ensure_public_demo
 from causaltrace import upstream_projects
 from causaltrace.nemotron_client import configuration
-from causaltrace.pipeline import run_investigation
+from causaltrace.pipeline import run_investigation, save_stopped
 from causaltrace.test_runner import docker_status
 from causaltrace.language_runner import committed_runner, MULTILANG_IMAGE
-from causaltrace.investigation_control import ACTIVE_CONTROL, Control
+from causaltrace.investigation_control import ACTIVE_CONTROL, Control, InvestigationStopped
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORTS_ROOT = PROJECT_ROOT / "reports"
@@ -150,6 +150,10 @@ def run(request: InvestigationRequest):
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
         control.report_id = report.get('id')
         return {"status": report["status"], "report": report}
+    except InvestigationStopped:
+        report = save_stopped(control, request.repository_id, request.investigation_type, REPORTS_ROOT)
+        control.report_id = report['id']
+        return {'status':report['status'], 'report':report}
     except HTTPException:
         raise
     except (ValueError, RuntimeError) as error:
@@ -178,7 +182,8 @@ def investigation_status(control_id: str | None = None):
             with control.condition:
                 return {'active':True, 'control_id':run_id, 'state':control.state,
                         'repository_id':control.repository_id, 'investigation_type':control.investigation_type,
-                        'completed_commits':len({row['commit'] for row in control.results})}
+                        'completed_commits':len({row['commit'] for row in control.results}),
+                        'activity':control.activity, 'pause_effect':control.pause_effect}
         return {'active':False, 'completed':recent_runs.get(control_id) if control_id else None}
 
 
@@ -193,7 +198,7 @@ def control_investigation(control_id: str, request: ControlRequest):
         if control is None:
             raise HTTPException(404, 'This investigation is no longer running.')
         state = control.command(request.action)
-    return {'state':state, 'reason':'The active test, setup operation or AI request finishes first. No new operation starts while paused or stopping.'}
+    return {'state':state, 'reason':'Controls apply to active work. Docker and child processes pause in place; Stop cancels active work. Provider generation cannot be remotely paused.'}
 
 
 @app.get("/api/repositories/{repository_id}/timeline")

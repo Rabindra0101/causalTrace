@@ -3,13 +3,14 @@ import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from causaltrace.controlled_process import run as controlled_run
 
 
 @contextmanager
 def independent_snapshot(source, revision=None):
     source = Path(source).resolve()
     def git(*args, cwd=source):
-        return subprocess.run(["git", "-c", "core.fsmonitor=false", *args], cwd=cwd,
+        return controlled_run(["git", "-c", "core.fsmonitor=false", *args], cwd=cwd,
                               capture_output=True, text=True, encoding="utf-8",
                               errors="replace", check=True, timeout=120).stdout.strip()
     if Path(git("rev-parse", "--show-toplevel")).resolve() != source:

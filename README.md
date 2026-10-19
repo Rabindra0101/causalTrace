@@ -35,10 +35,15 @@ Pop-Location
 ```
 
 While an investigation runs, **Pause**, **Resume** and **Stop** appear beside
-the Run button. They take effect between operations: an active test, setup step
-or provider request finishes first. Pausing waits in the same run; stopping
-releases temporary worktrees and saves completed commit results in a partial
-report. A stopped run does not claim a completed diagnosis or verified repair.
+the Run button. Pause freezes active child processes and Docker containers;
+Resume continues the same operation without restarting it. Paused time does not
+consume the subprocess timeout. Stop terminates active work, cleans up temporary
+resources and saves completed commit results in a partial report.
+Nebius generation cannot be frozen remotely: while paused, its response is held
+locally until Resume. Stop cancels the local request and closes its connection;
+provider computation or billing may continue. No subsequent analysis or repair
+starts while paused or stopped. A stopped run does not claim a completed diagnosis
+or verified repair. Process termination and resource cleanup can take a few seconds.
 These controls require the same running backend process; restarting it ends the run.
 Refreshing or reopening the page reconnects to an active investigation and restores
 its controls. The page loads the saved report when that investigation finishes.
