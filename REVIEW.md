@@ -1,0 +1,51 @@
+# Submission readiness review
+
+## Original blockers found
+
+- Git investigation and Build Doctor were separate workflows. Git results did not feed repair proposals.
+- Original Git demos demonstrated arithmetic regressions only.
+- Reports used a single global latest file, so concurrent readers could pick up a different run.
+- Missing NEBIUS_API_KEY raised during module import, preventing inspection/testing of the original CLI.
+- Import/collection failures were classified as infrastructure errors in the original Git engine.
+- Temporary repair directories had private permissions that could block the non-root Docker user.
+- The original README lacked install, run, model and judge instructions.
+- The original EvidenceGraph effect triggered a frontend lint error.
+
+## Changes made
+
+- Connected reproduction, history search, reversal controls, model diagnosis, source repair and before/after tests.
+- Added real generated Git histories for configuration, import and API-handler regressions.
+- Added readiness checks, run-specific report IDs, downloads and historical test outcomes.
+- Preserved Git evidence when the model is unavailable and labeled the run partial.
+- Required actual pytest collection/outcome evidence and unchanged collected tests for repair success.
+- Kept Docker-only execution in production, with no host-runner fallback.
+- Kept pasted evidence as an advanced workspace beneath the main investigation.
+- Removed the unused LegacyApp.tsx, git_analyzer.py and report_generator.py after their responsibilities moved to the connected pipeline.
+- Excluded dependency directories, personal Git metadata, caches and stale generated reports from the delivery ZIP. Included the checked frontend production build so the release can run from one backend process.
+
+## Verified in the review environment
+
+- Backend suite: seven test methods passed, including the complete workflow on all six demos and a full API investigation/report/graph/timeline run.
+- Real Git and pytest: every demo had a passing parent, a failing regression, a verified suspected reversal, an unsupported unrelated reversal and a passing repaired implementation.
+- Original repository HEAD/source stayed unchanged; temporary Git worktrees were cleaned up.
+- Missing model preserves experimental evidence; invalid paths and protected-file patches are rejected.
+- Docker errors, no-test runs and skipped-only runs cannot produce verified outcomes.
+- API validation, missing report handling, run identity and cross-repository report rejection passed.
+- Frontend TypeScript/Vite production build and ESLint passed.
+- Production HTML and its bundled JavaScript/CSS assets were served successfully by the backend.
+
+The automated model reply is mocked. Trusted demo tests execute on the host only
+through a test-specific injected runner. The application itself always uses Docker.
+
+## Still needs a live check before calling this submission-ready
+
+1. Windows Docker Desktop: build the image and run configuration and import investigations in the app.
+2. Nebius: use your configured key to produce and test actual model patches for those runs.
+3. Browser: confirm readable results, source/diff display, timeline, graph and report download.
+4. Submission access: choose a judge-accessible test build or demo route and verify it from a clean setup.
+5. Finish the public repository, actual Nebius feedback and public YouTube demonstration.
+
+No Docker engine, API key or browser binary was available for live execution in
+this review environment. Successful local integration checks do not replace those checks.
+
+Do not record a simulated model result as the final demo. Record a fresh live run.
