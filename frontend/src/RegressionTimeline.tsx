@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './RegressionTimeline.css'
 
 type TimelineCommit = {
@@ -8,7 +8,7 @@ type TimelineCommit = {
   message: string
   date: string
   test_status: string
-  result?: { status: string; return_code: number; output: string }
+  result?: { status: string; return_code: number; output: string; counts?: { test: number; passed: number; failed: number; skipped: number } }
 }
 
 type TimelineResponse = {
@@ -16,6 +16,8 @@ type TimelineResponse = {
   history_type?: string
   latest_pass?: string | null
   latest_fail?: string | null
+  latest_pass_with_skips?: string | null
+  latest_error?: string | null
   complete?: boolean
   reason?: string
   commits: TimelineCommit[]
@@ -37,6 +39,9 @@ export default function RegressionTimeline({
   const [commits, setCommits] = useState<TimelineCommit[]>([])
   const [historyType, setHistoryType] = useState('synthetic')
   const [summary, setSummary] = useState<TimelineResponse | null>(null)
+  const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const detail = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +55,8 @@ export default function RegressionTimeline({
       setCommits([])
       setSelected(null)
       setSummary(null)
+      setFilter('all')
+      setQuery('')
 
       try {
         const response = await fetch(
@@ -85,6 +92,10 @@ export default function RegressionTimeline({
     return () => controller.abort()
   }, [repositoryId, reportId])
 
+  const category = (status: string) => ['fail', 'collection_error'].includes(status) ? 'failed' : status === 'pass' ? 'passed' : status === 'pass_with_skips' ? 'incomplete' : status === 'not_tested' ? 'untested' : 'errors'
+  const visible = useMemo(() => commits.filter(commit =>
+    (filter === 'all' || category(commit.test_status) === filter)
+    && (commit.hash + ' ' + commit.message).toLowerCase().includes(query.toLowerCase())), [commits, filter, query])
   const selectedCommit = commits.find(commit => commit.hash === selected)
 
   return (
@@ -93,15 +104,22 @@ export default function RegressionTimeline({
         <div>
           <h2>Git Regression Timeline</h2>
           <p className="subtitle">
-            {historyType !== 'synthetic' ? 'Original Git commits and author dates, displayed in your local time zone.' : 'Synthetic demo history; these commits were created for the demonstration.'}
+            {historyType !== 'synthetic' ? 'Original Git commits and author dates, displayed in your local time zone. ' : 'Synthetic demo history; these commits were created for the demonstration.'}
             Untested commits are not classified as passing or failing.
           </p>
         </div>
-        <span className="timeline-count">{commits.length} commits</span>
+        <span className="timeline-count">{commits.length} {commits.length === 1 ? 'commit' : 'commits'}</span>
       </div>
 
       {summary?.reason && <p role="status">{summary.reason}</p>}
-      {summary && ('latest_pass' in summary || 'latest_fail' in summary) && <p><strong>Most recent passing commit:</strong> <code>{summary.latest_pass?.slice(0, 8) ?? 'Not found in tested history'}</code><br /><strong>Most recent failing commit:</strong> <code>{summary.latest_fail?.slice(0, 8) ?? 'Not found in tested history'}</code></p>}
+      {summary && ('latest_pass' in summary || 'latest_fail' in summary) && <p><strong>Most recent passing commit:</strong> <code>{summary.latest_pass?.slice(0, 8) ?? 'No fully passing run found'}</code><br /><strong>Most recent failing commit:</strong> <code>{summary.latest_fail?.slice(0, 8) ?? 'Not found in tested history'}</code></p>}
+      {summary?.latest_pass_with_skips && <p className="timeline-caution"><strong>Latest passing run with skipped tests:</strong> <code>{summary.latest_pass_with_skips.slice(0,8)}</code>. Executed tests passed; skipped coverage is not verified.</p>}
+      {summary?.latest_error && <p className="timeline-caution"><strong>Latest runner error:</strong> <code>{summary.latest_error.slice(0,8)}</code>. Its output is retained below; it is not labeled as a regression.</p>}
+      {!loading && !error && commits.length > 0 && <div className="timeline-tools">
+        <label className="timeline-search"><span>Find a commit</span><input type="search" value={query} placeholder="Search commit ID or message?" onChange={e => setQuery(e.target.value)} /></label>
+        <div className="timeline-filters" role="group" aria-label="Filter commit results">{[['all','All results'],['failed','Failed'],['passed','Passed'],['incomplete','With skips'],['errors','Runner errors']].map(([key,label]) => <button key={key} type="button" aria-pressed={filter===key} onClick={() => {setFilter(key);setSelected(null)}}>{label} <strong>{key==='all' ? commits.length : commits.filter(c => category(c.test_status)===key).length}</strong></button>)}</div>
+        <p role="status">Showing {visible.length} of {commits.length} commits. Select a commit to inspect its output.</p>
+      </div>}
       {loading && <p role="status">Loading Git history...</p>}
       {error && <p role="alert" className="error">{error}</p>}
 
@@ -112,7 +130,7 @@ export default function RegressionTimeline({
       {!loading && !error && commits.length > 0 && (
         <>
           <div className="timeline-list">
-            {commits.map(commit => {
+            {visible.map(commit => {
               const suspected = Boolean(
                 suspectedCommit &&
                 (commit.hash === suspectedCommit ||
@@ -128,7 +146,7 @@ export default function RegressionTimeline({
                   className={`timeline-item ${
                     suspected ? 'timeline-suspected' : ''
                   } ${selected === commit.hash ? 'timeline-selected' : ''}`}
-                  onClick={() => setSelected(commit.hash)}
+                  onClick={() => { setSelected(commit.hash); requestAnimationFrame(() => detail.current?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })) }}
                   aria-pressed={selected === commit.hash}
                 >
                   <span className="timeline-node" aria-hidden="true" />
@@ -146,6 +164,7 @@ export default function RegressionTimeline({
                         <span className="timeline-untested">{commit.test_status.replaceAll('_', ' ').toUpperCase()}</span>
                       )}
                     </span>
+                    {commit.result?.counts && <span className="timeline-test-counts">{commit.result.counts.passed} passed ? {commit.result.counts.failed} failed ? {commit.result.counts.skipped} skipped</span>}
                     <span className="timeline-message">{commit.message}</span>
                     {historyType !== 'synthetic' ? <time dateTime={commit.date}>
                       Author date: {new Date(commit.date).toLocaleString()}
@@ -157,8 +176,8 @@ export default function RegressionTimeline({
           </div>
 
           {selectedCommit && (
-            <div className="timeline-detail">
-              <h3>Selected Commit</h3>
+            <div className="timeline-detail" ref={detail} tabIndex={-1}>
+              <h3>Commit evidence</h3>
               <p><strong>Commit:</strong> <code>{selectedCommit.hash}</code></p>
               <p><strong>Message:</strong> {selectedCommit.message}</p>
               <p>

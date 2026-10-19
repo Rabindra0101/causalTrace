@@ -1,0 +1,55 @@
+/* Keep the investigation form aligned independently of the decorative theme. */
+.investigation-launch .header-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.investigation-launch .repository-selector { min-width: 0; width: 100%; }
+.investigation-launch .header-actions > p,
+.investigation-launch .header-actions > fieldset { grid-column: 1 / -1; }
+.investigation-launch .mode-picker {
+  min-inline-size: 0;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0;
+  padding: 0;
+  border: 0;
+}
+.investigation-launch .mode-picker legend {
+  padding: 0;
+  margin-bottom: 16px;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.investigation-launch .mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.investigation-launch .mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  border: 2px solid #bccfc2;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.investigation-launch .mode-card.is-selected { border-color: #267355; background: #eaf6ee; }
+.investigation-launch .mode-card:hover { border-color: #427b61; }
+.investigation-launch .mode-card:focus-within { outline: 3px solid #6234a0; outline-offset: 3px; }
+.investigation-launch .mode-card input { flex: 0 0 22px; width: 22px; height: 22px; margin: 3px 0 0; accent-color: #267355; }
+.investigation-launch .mode-card > span { display: block; min-width: 0; }
+.investigation-launch .mode-card strong { display: block; margin: 0 0 8px; color: #294b3b; font-size: 1.125rem; line-height: 1.5; }
+.investigation-launch .mode-card span span { display: block; color: #435e4c; font-size: 1rem; line-height: 1.6; }
+.investigation-launch .repository-selector > span:last-child:not(:first-child) { font-weight: 400; line-height: 1.65; }
+@media (max-width: 760px) {
+  .investigation-launch .header-actions,
+  .investigation-launch .mode-grid { grid-template-columns: minmax(0, 1fr); }
+  .investigation-launch .run-button { width: 100%; min-width: 0; }
+}

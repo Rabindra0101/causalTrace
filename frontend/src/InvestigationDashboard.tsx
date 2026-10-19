@@ -90,6 +90,13 @@ export default function InvestigationDashboard() {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!running) return
+    const started = Date.now()
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now()-started)/1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [running])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -110,7 +117,7 @@ export default function InvestigationDashboard() {
   }
 
   async function run() {
-    setRunning(true); setError(''); setReport(null)
+    setElapsed(0); setRunning(true); setError(''); setReport(null)
     try {
       const data = await fetch('/api/run-investigation', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -190,17 +197,14 @@ export default function InvestigationDashboard() {
           <p>Preparation and builds use a disposable copy for each tested revision. Your repository is not modified. Python uses prepared images instead.</p>
         </fieldset>
       </>}
-      <label className="repository-selector"><span>Investigation type</span>
-        <select value={investigationType} disabled={running}
-          onChange={e => { setInvestigationType(e.target.value); setReport(null) }}>
-          <option value="release">Compare releases and repair regressions</option>
-          <option value="full">Full investigation and repair</option>
-          <option value="diagnose">AI diagnosis and development suggestions</option>
-          <option value="regression">Git regression and reversal</option>
-          <option value="reproduce">Reproduce failure only</option>
-        </select>
-      </label>
-      {(investigationType === 'regression' || investigationType === 'reproduce') && <label className="repository-selector"><span>Maximum historical commits to test</span><select value={historyLimit} disabled={running} onChange={e => setHistoryLimit(Number(e.target.value))}>{[16,32,64,128,256,512,1024,2048].map(n => <option key={n} value={n}>{n}</option>)}</select><span>Tests each commit from HEAD through the most recent passing/failing transition. Shows all tested results; stops on unavailable evidence or this limit.</span></label>}
+      <fieldset className="mode-picker" disabled={running}><legend>What would you like to investigate?</legend><div className="mode-grid">{[
+        ['full', 'Find the breaking change', 'Trace history, challenge the cause and test an AI repair.'],
+        ['release', 'Repair a broken update', 'Compare working and broken releases; iterate on fixes.'],
+        ['diagnose', 'Explain an error', 'Get AI suggestions for errors, setup or code improvements.'],
+        ['regression', 'Check Git causes', 'Test history and reverse candidates without AI.'],
+        ['reproduce', 'Explore test history', 'Run tests and find recent passing and failing commits.'],
+      ].map(([value,title,description]) => <label key={value} className={`mode-card ${investigationType===value ? 'is-selected' : ''}`}><input type="radio" name="investigation-type" value={value} checked={investigationType===value} onChange={() => {setInvestigationType(value);setReport(null);setError('')}} /><span><strong>{title}</strong><span>{description}</span></span></label>)}</div></fieldset>
+      {(['full','regression','reproduce'].includes(investigationType)) && <label className="repository-selector"><span>Maximum historical commits to test</span><select value={historyLimit} disabled={running} onChange={e => setHistoryLimit(Number(e.target.value))}>{[16,32,64,128,256,512,1024,2048].map(n => <option key={n} value={n}>{n}</option>)}</select><span>Tests each commit from HEAD through the most recent passing/failing transition. Shows all tested results; keeps skipped/error runs visible and continues until a pass/fail observation or this limit.</span></label>}
       {investigationType === 'release' && <>
         <label className="repository-selector"><span>Last working release (tag or commit)</span><input value={goodRef} disabled={running} placeholder="v1.0.0 or commit ID" onChange={e => setGoodRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Broken release (tag or commit)</span><input value={badRef} disabled={running} placeholder="HEAD" onChange={e => setBadRef(e.target.value)} /></label>
@@ -214,7 +218,7 @@ export default function InvestigationDashboard() {
         <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
       </fieldset>}
       <button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
-        onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}<span aria-hidden="true">↗</span></button>
+        onClick={() => void run()}>{running ? 'Investigating…' : ({full:'Find breaking change', release:'Run repair agent', diagnose:'Get AI suggestions', regression:'Test Git causes', reproduce:'Explore tested history'}[investigationType] ?? 'Run investigation')}<span aria-hidden="true">↗</span></button>
     </div></section>
 
     <section className="panel setup-panel" id="readiness"><div className="setup-heading"><div><p className="section-kicker">BEFORE YOU BEGIN</p><h2>Workspace readiness</h2></div>
@@ -230,12 +234,12 @@ export default function InvestigationDashboard() {
       </> : <p>Checking backend setup…</p>}
     </section>
 
-    {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
+    {running && <p role="status" className="investigation-progress" aria-live="polite">{investigationType === 'reproduce'
       ? 'Testing HEAD and each historical commit through the most recent passing/failing transition.'
       : investigationType === 'release' ? 'Testing both releases, bisecting failures, challenging candidate causes and testing bounded repair attempts.'
       : investigationType === 'diagnose' ? 'Running baseline checks and preparing evidence-based AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
-      : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} This may take several minutes.</p>}
+      : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} Elapsed: {elapsed}s. Each result comes from actual tests; longer histories may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}
 
     {!report && !running && <section className="panel getting-started"><p className="section-kicker">SMALL DEMO. REAL EVIDENCE.</p><h2>Meet your next “aha” moment.</h2>
