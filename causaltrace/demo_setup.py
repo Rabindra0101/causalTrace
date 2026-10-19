@@ -42,7 +42,8 @@ DEMO_IDS = ("config", "imports", "api", "negative_reversal", "calculator", "inve
 
 def demo_catalog():
     catalog = recipes()
-    return [{"id": key, "name": catalog[key]["name"]} for key in DEMO_IDS]
+    from causaltrace.public_demos import catalog as public_catalog
+    return [{"id": key, "name": catalog[key]["name"]} for key in DEMO_IDS] + public_catalog()
 
 
 def git(repo, *args):
@@ -57,6 +58,9 @@ def git(repo, *args):
 
 
 def ensure_demo(repository_id: str) -> Path:
+    from causaltrace.public_demos import PUBLIC_IDS, ensure_public_demo
+    if repository_id in PUBLIC_IDS:
+        return ensure_public_demo(repository_id)
     if repository_id not in DEMO_IDS:
         raise ValueError("Repository is not configured.")
     root = PROJECT_ROOT / ".causaltrace" / "demos"

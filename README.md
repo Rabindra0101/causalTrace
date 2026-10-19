@@ -230,3 +230,10 @@ deadline. Review the current official rules:
 https://nebiusglobalaihackathon.devpost.com/rules
 
 MIT license.
+
+## Public-project bug replays
+
+Four distinct regression tests are available for humanize, PySnooper,
+Cookiecutter and Apache Commons CSV. Select a **public bug replay** in the
+repository dropdown. See [PUBLIC_DEMOS.md](PUBLIC_DEMOS.md) for pinned source
+provenance, limitations, runner images and Docker verification commands.

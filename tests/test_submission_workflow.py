@@ -151,7 +151,7 @@ class WorkflowTests(unittest.TestCase):
         with TestClient(app) as client, tempfile.TemporaryDirectory() as folder, \
              patch("causaltrace.api.REPORTS_ROOT", Path(folder)):
             self.assertEqual(client.get("/api/health").status_code, 200)
-            self.assertEqual(len(client.get("/api/repositories").json()["repositories"]), 6)
+            self.assertEqual(len(client.get("/api/repositories").json()["repositories"]), 10)
             self.assertEqual(client.get("/api/investigation?report_id=../../bad").status_code, 400)
             self.assertEqual(client.get("/api/investigation?report_id=" + "f" * 32).status_code, 404)
             self.assertEqual(client.post("/api/run-investigation", json={"repository_id": "unknown"}).status_code, 400)

@@ -92,3 +92,20 @@ No Docker engine, API key or browser binary was available for live execution in
 this review environment. Successful local integration checks do not replace those checks.
 
 Do not record a simulated model result as the final demo. Record a fresh live run.
+
+## Four public-project regression replays — October 18, 2026
+
+- Added separate humanize significant-figure, PySnooper Unicode, Cookiecutter
+  UTF-8 context and Apache Commons CSV carriage-return regression tests.
+- Vendored pinned upstream extracts/class, licenses, Apache NOTICE and provenance.
+  Histories and authored tests are explicitly labeled as reconstructed replays.
+- Real offline Docker checks verified each historical bug fails and the fixed
+  source passes with unchanged tests. All four also confirmed a historical
+  boundary, a verified suspected reversal and an unsupported unrelated reversal.
+- Backend suite: 32 passed, 6 optional suites skipped, 33 subtests passed with
+  public-demo Docker checks enabled. An additional API runner-selection test
+  passed afterward (5 fast checks passed; 8 Docker checks skipped in that rerun).
+- Frontend production build and lint passed; existing bundle-size warning remains.
+- No live Nebius inference was used for these checks. Full diagnosis/repair remains
+  a separate live experiment, independently verified by the existing app workflow.
+- Work stayed within CausalTrace. FileSync and environment secrets were untouched.

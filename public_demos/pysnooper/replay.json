@@ -1,0 +1,11 @@
+{
+  "name": "PySnooper \u2014 Unicode source",
+  "path": "subject.py",
+  "fixed": "encoding = 'utf-8'",
+  "broken": "encoding = 'ascii'",
+  "upstream_fixed": "56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2",
+  "source": "https://raw.githubusercontent.com/cool-RR/PySnooper/56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2/pysnooper/tracer.py",
+  "note": "Focused extracted source with compatibility harness; newly authored regression test. Three-commit replay history is reconstructed, not upstream history.",
+  "upstream_buggy": "e21a31162f4c54be693d8ca8260e42393b39abd3",
+  "upstream_source_sha256": "8fc6b1f4a613bfae86dbed26936b203dda2818d6276cdecaf30cc097f9963870"
+}

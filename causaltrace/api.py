@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from causaltrace.build_api import router as build_router
 from causaltrace.demo_setup import DEMO_IDS, demo_catalog, ensure_demo
+from causaltrace.public_demos import PUBLIC_IDS, JAVA_IMAGE
 from causaltrace.nemotron_client import configuration
 from causaltrace.pipeline import run_investigation
 from causaltrace.test_runner import docker_status
@@ -78,7 +79,7 @@ def repositories():
 
 @app.post("/api/run-investigation")
 def run(request: InvestigationRequest):
-    if request.repository_id not in (*DEMO_IDS, "local"):
+    if request.repository_id not in (*DEMO_IDS, *PUBLIC_IDS, "local"):
         raise HTTPException(400, "Repository is not configured.")
     if request.repository_id == "local":
         if not request.repository_path or not Path(request.repository_path).is_absolute():
@@ -96,19 +97,21 @@ def run(request: InvestigationRequest):
         raise HTTPException(409, "An investigation is already running.")
     try:
         repository = repository if repository is not None else ensure_demo(request.repository_id)
-        selected_runner = committed_runner(repository, directory, request.test_runner)
+        runner = ("maven" if request.repository_id == "commons_csv" else "pytest") if request.repository_id in PUBLIC_IDS else request.test_runner
+        image = request.runner_image or (JAVA_IMAGE if request.repository_id == "commons_csv" else None)
+        selected_runner = committed_runner(repository, directory, runner)
         if request.install_dependencies or request.build_frontend:
             if selected_runner == "pytest":
                 raise HTTPException(400, "Automatic project preparation currently supports non-Python runners. Use a prepared image for Python.")
             if ".." in PurePosixPath(request.frontend_directory).parts or PurePosixPath(request.frontend_directory).is_absolute():
                 raise HTTPException(400, "Frontend directory must be relative and inside the project.")
-        docker = (docker_status(request.runner_image or MULTILANG_IMAGE) if selected_runner != "pytest" or request.runner_image
+        docker = (docker_status(image or MULTILANG_IMAGE) if selected_runner != "pytest" or image
                   else docker_status())
         if not docker["ready"]:
             raise HTTPException(503, docker["reason"])
         report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
                                    investigation_type=request.investigation_type,
-                                   test_runner=selected_runner, runner_image=request.runner_image,
+                                   test_runner=selected_runner, runner_image=image,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
         return {"status": report["status"], "report": report}
@@ -125,7 +128,7 @@ def run(request: InvestigationRequest):
 
 @app.get("/api/repositories/{repository_id}/timeline")
 def timeline(repository_id: str, report_id: str | None = None):
-    if repository_id not in DEMO_IDS:
+    if repository_id not in (*DEMO_IDS, *PUBLIC_IDS):
         raise HTTPException(404, "Repository is not configured.")
     report = report_file(report_id) if report_id else None
     if report and report["repository_id"] != repository_id:

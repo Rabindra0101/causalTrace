@@ -122,6 +122,10 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
         "test_runner": RUNNER.get(),
         "preparation_options": PREPARATION.get(),
     }
+    from causaltrace.public_demos import PUBLIC_IDS, metadata
+    if repository_id in PUBLIC_IDS:
+        info = metadata(repository_id)
+        report["provenance"] = {key: info[key] for key in ("name", "source", "upstream_fixed", "note")}
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline

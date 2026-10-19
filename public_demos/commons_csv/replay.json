@@ -1,0 +1,11 @@
+{
+  "name": "Apache Commons CSV \u2014 CR line counting",
+  "path": "src/main/java/org/apache/commons/csv/ExtendedBufferedReader.java",
+  "fixed": "current == '\\r' || (current == '\\n' && lastChar != '\\r')",
+  "broken": "current == '\\n'",
+  "upstream_fixed": "de1838ea067f3fbc4c7c21b9eeae077c739ecb73",
+  "source": "https://raw.githubusercontent.com/apache/commons-csv/de1838ea067f3fbc4c7c21b9eeae077c739ecb73/src/main/java/org/apache/commons/csv/ExtendedBufferedReader.java",
+  "note": "Complete upstream reader class, newly authored JUnit test; reconstructed history for Defects4J Csv-1 / CSV-75.",
+  "upstream_buggy": "0833f45bffd40f44ba6f294d84e9bac8a9ba0a37",
+  "upstream_source_sha256": "6ad0e9b92e4afa4139eda739d38f41be6f302af433adedf135f83807f23da8fe"
+}
