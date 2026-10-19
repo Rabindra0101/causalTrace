@@ -39,6 +39,23 @@ def setup_issues(result):
 PYTEST_SCRIPT = """
 import json
 import pytest
+import os, pathlib, shutil, subprocess, sys
+
+upstream = os.environ.get('CAUSALTRACE_UPSTREAM_PROJECT')
+extra_args = []
+if upstream:
+    root = pathlib.Path('/tmp/upstream-project')
+    shutil.copytree('/workspace', root, ignore=shutil.ignore_patterns('.git', '.env', '.env.*', '__pycache__', '.pytest_cache'))
+    os.chdir(root)
+    sys.path[:0] = [str(root), str(root / 'src')]
+    os.environ['PYTHONPATH'] = str(root) + ':' + str(root / 'src')
+    if upstream == 'humanize':
+        os.environ['SETUPTOOLS_SCM_PRETEND_VERSION'] = '0.0.0'
+        subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-index', '--no-deps', '--no-build-isolation', '--target', '/tmp/upstream-install', '.'], check=True)
+        subprocess.run(['bash', 'scripts/generate-translation-binaries.sh'], check=True)
+        extra_args += ['-p', 'pytest_benchmark.plugin', '--benchmark-disable']
+    elif upstream == 'cookiecutter':
+        extra_args += ['-p', 'pytest_cov.plugin', '-p', 'pytest_mock', '-o', 'addopts=']
 
 class Evidence:
     def __init__(self):
@@ -71,7 +88,7 @@ class Evidence:
         }))
 
 raise SystemExit(pytest.main(
-    ['-v', '-p', 'no:cacheprovider', '--import-mode=importlib'],
+    ['-v', '-p', 'no:cacheprovider', '--import-mode=prepend' if upstream else '--import-mode=importlib', *extra_args],
     plugins=[Evidence()]
 ))
 """
@@ -109,7 +126,12 @@ def parse_result(return_code, stdout, stderr):
     )
     failed = return_code in (1, 2) and bool(summary["failed_ids"])
     collection_error = return_code in (1, 2) and bool(summary["collection_errors"]) and not failed
-    status = "pass" if passed else "fail" if failed else "collection_error" if collection_error else "error"
+    pass_with_skips = (
+        return_code == 0 and bool(summary['passed_ids']) and bool(summary['skipped_ids'])
+        and not summary['failed_ids'] and not summary['collection_errors']
+        and set(summary['passed_ids']) | set(summary['skipped_ids']) == set(summary['test_ids'])
+    )
+    status = "pass_with_skips" if pass_with_skips else "pass" if passed else "fail" if failed else "collection_error" if collection_error else "error"
     visible = "\n".join(line for line in output.splitlines() if not line.startswith(SUMMARY_MARKER))
     return {
         "passed": passed, "test_failed": failed or collection_error,
@@ -170,6 +192,7 @@ def run_pytest(repo_path: Path) -> dict:
     name = f"causaltrace-test-{uuid.uuid4().hex[:12]}"
     runner = RUNNER.get()
     image = IMAGE.get() or (DOCKER_IMAGE if runner == "pytest" else MULTILANG_IMAGE)
+    upstream_image = image.startswith("causaltrace-upstream-")
     script = ["python", "-c", PYTEST_SCRIPT] if runner == "pytest" else ["python", "-c", DRIVER, runner]
     preparation = PREPARATION.get()
     volume = name + "-prepared"
@@ -177,10 +200,10 @@ def run_pytest(repo_path: Path) -> dict:
     common = [
         "docker", "run", "--rm",
         "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "--memory", "256m" if runner == "pytest" else "1g",
-        "--cpus", "1" if runner == "pytest" else "2",
-        "--pids-limit", "64" if runner == "pytest" else "256",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m" if runner == "pytest" else "/tmp:rw,exec,nosuid,size=512m",
+        "--memory", "256m" if runner == "pytest" and not upstream_image else "1g",
+        "--cpus", "1" if runner == "pytest" and not upstream_image else "2",
+        "--pids-limit", "64" if runner == "pytest" and not upstream_image else "256",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m" if runner == "pytest" and not upstream_image else "/tmp:rw,exec,nosuid,size=512m",
         "-e", "PYTHONDONTWRITEBYTECODE=1",
         "-e", "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
         "--mount", f"type=bind,source={repo_path},target=/workspace,readonly",
@@ -209,7 +232,7 @@ def run_pytest(repo_path: Path) -> dict:
         command = [*common, "--name", name, "--network", "none", *mount, image, *script]
         result = subprocess.run(
             command, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=TEST_TIMEOUT, check=False,
+            errors="replace", timeout=180 if upstream_image else TEST_TIMEOUT, check=False,
         )
         evidence = parse_result(result.returncode, result.stdout, result.stderr)
         if preparation_result:
@@ -217,7 +240,7 @@ def run_pytest(repo_path: Path) -> dict:
         return evidence
     except subprocess.TimeoutExpired:
         preparing = preparation and preparation_result is None
-        evidence = execution_error("Project preparation exceeded 300 seconds." if preparing else "Test execution exceeded 60 seconds.")
+        evidence = execution_error("Project preparation exceeded 300 seconds." if preparing else "Test execution exceeded its time limit.")
         if preparing:
             evidence["preparation"] = {"status": "failed", "return_code": -1, "output": evidence["output"]}
         elif preparation_result:

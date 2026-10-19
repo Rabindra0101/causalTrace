@@ -1,45 +1,67 @@
-﻿# Four public-project regression demos
+﻿# Full upstream repository investigations
 
-Select a **public bug replay** in the Repository dropdown. Each replay contains
-pinned upstream code, a newly authored regression test, a passing baseline, a
-commit reintroducing the historical defect, and an unrelated documentation control.
-These are focused reconstructed histories, not clones of the upstream repositories
-or claims that our generated commit IDs are upstream commits.
+The four public project entries now clone **complete original Git repositories**
+into `.causaltrace/upstream/` inside CausalTrace. They check out pinned historical
+revisions, run the original committed test suites, and show original commit IDs
+and author dates. Investigation start time is displayed separately in local time.
+No generated regression commits or authored replay tests are injected.
 
-| Project | Test | Upstream fix |
+| Project | Pinned revision | Original-suite outcome verified locally |
 | --- | --- | --- |
-| humanize | Metric rounding preserves significant figures near the quetta boundary | [PR 406](https://github.com/python-humanize/humanize/pull/406) |
-| PySnooper | UTF-8 source without an encoding cookie retains Chinese characters | [Unicode fix](https://github.com/cool-RR/PySnooper/commit/56f22f8ffe1c6b2be4d2cf3ad1987fdb66113da2) |
-| Cookiecutter | Non-ASCII JSON context loads even with an ASCII default locale | [Context decoding fix](https://github.com/cookiecutter/cookiecutter/commit/7f6804c4953a18386809f11faf4d86898570debc) |
-| Apache Commons CSV | Standalone carriage returns advance the line counter | [CSV-75](https://issues.apache.org/jira/browse/CSV-75) / Defects4J Csv-1 |
+| [humanize](https://github.com/python-humanize/humanize) | `392aef707c0e74341ab4a51420984e9ea6b566c5` | 856 passed |
+| [PySnooper](https://github.com/cool-RR/PySnooper) | `e21a31162f4c54be693d8ca8260e42393b39abd3` | 28 passed |
+| [Cookiecutter](https://github.com/cookiecutter/cookiecutter) | `c15633745df6abdb24e02746b82aadb20b8cdf8c` | 294 passed, 1 skipped |
+| [Apache Commons CSV](https://github.com/apache/commons-csv) | `0833f45bffd40f44ba6f294d84e9bac8a9ba0a37` | 53 passed, 2 skipped |
 
-The first three extract relevant upstream functions. PySnooper has minimal
-Python 3 compatibility shims; Cookiecutter has a local exception harness and
-simulates an ASCII locale in its test. Commons CSV includes its full reader
-class and an authored JUnit test. Original license texts and Apache NOTICE are
-included beside each fixture. `replay.json` records the pinned source and mutation.
-The model receives source/test evidence, not the replay mutation metadata.
+These historical revisions contain the previously demonstrated defects, but their
+original test suites do not reproduce those defects in these runners. Full-mode
+investigations therefore stop with **no failure reproduced**. They do not claim
+verified regression boundaries, model diagnoses, or repairs. Skipped tests remain
+visible and prevent a claim that every test passed. A failing baseline is required
+before the existing historical search and reversal workflow proceeds; search is
+limited to 16 first-parent revisions. Full Git history is retained by the clone.
 
-Run these PowerShell commands from CausalTrace to prepare images:
+From CausalTrace, prepare all four projects in Windows PowerShell:
 
 ```powershell
-docker build -f Dockerfile.test-runner -t causaltrace-test-runner:local .
-if ($LASTEXITCODE -ne 0) { throw 'Python image build failed' }
+.\.venv\Scripts\python.exe -m causaltrace.upstream_projects all
+if ($LASTEXITCODE -ne 0) { throw 'Upstream checkout preparation failed' }
 docker build -f Dockerfile.multilang-runner -t causaltrace-multilang-runner:local .
-if ($LASTEXITCODE -ne 0) { throw 'Multilingual image build failed' }
-docker build -t causaltrace-framework-fixtures:local tests/fixtures/multilang
-if ($LASTEXITCODE -ne 0) { throw 'Java dependency image build failed' }
-$env:CAUSALTRACE_PUBLIC_DEMO_TESTS = '1'
-.\.venv\Scripts\python.exe -m pytest tests/test_public_demos.py -q
+if ($LASTEXITCODE -ne 0) { throw 'Base runner build failed' }
+foreach ($project in @('humanize', 'pysnooper', 'cookiecutter')) {
+    docker build -f Dockerfile.upstream-python --target $project -t "causaltrace-upstream-${project}:local" .
+    if ($LASTEXITCODE -ne 0) { throw "Runner build failed: $project" }
+}
+docker build -f Dockerfile.upstream-csv -t causaltrace-upstream-commons-csv:local .causaltrace/upstream/commons-csv
+if ($LASTEXITCODE -ne 0) { throw 'CSV runner build failed' }
+.\.venv\Scripts\python.exe -m scripts.run_upstream_investigations all
+if ($LASTEXITCODE -ne 0) { throw 'Investigation failed' }
 ```
 
-The opt-in checks exercise real Docker tests on broken and repaired source, plus
-Git boundary discovery, suspected reversal and an unrelated reversal control.
-They do not call Nebius. Choose **Full investigation and repair** in the running
-app to test live model diagnosis and a separately verified proposed patch.
+Select a **full upstream repository** in the dashboard and run an investigation
+to display its report and timeline. Restart the backend after updating the code.
+The first clone and runner image builds require network access. Tests run offline
+in disposable containers; repository mounts are read-only. Working copies use LF
+line endings for Linux. Humanize's generated version and translation binaries are
+built only in the disposable container. CSV uses Java 8 and its own Maven POM;
+Python profiles use their revision-compatible dependencies and Python versions.
+Dependency versions are pinned where explicitly listed in the Dockerfile;
+transitive packages and base image tags are not a complete dependency lock.
 
-Fixture creation during app usage is offline and confined to
-`.causaltrace/demos/public-*` under CausalTrace. No FileSync path is read or written.
-To regenerate vendored extracts, run `scripts/import_public_demo_sources.py`
-(network required), then `scripts/build_public_demos.py`. Regeneration is a
-maintainer operation and is never performed when selecting a demo.
+Existing local changes in a cached upstream checkout are rejected and preserved.
+FileSync is neither accessed nor modified. No API key or `.env` file is copied.
+Old downloaded replay reports retain their reconstructed timelines; re-run an
+investigation to obtain original upstream history. The six tiny bundled fixtures
+remain synthetic demos and now label generated commits without misleading dates.
+
+The prior focused public replays remain under `public_demos/` for regression
+checks and compatibility with old reports. Their licenses, NOTICE, extraction
+metadata and regeneration scripts remain available; they are no longer the four
+public repository selections in the dashboard.
+
+To repeat the complete original-suite Docker integration checks:
+
+```powershell
+$env:CAUSALTRACE_UPSTREAM_TESTS = '1'
+.\.venv\Scripts\python.exe -m pytest tests/test_upstream_projects.py -q
+```

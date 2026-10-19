@@ -109,3 +109,21 @@ Do not record a simulated model result as the final demo. Record a fresh live ru
 - No live Nebius inference was used for these checks. Full diagnosis/repair remains
   a separate live experiment, independently verified by the existing app workflow.
 - Work stayed within CausalTrace. FileSync and environment secrets were untouched.
+
+## Full upstream investigations — October 18, 2026
+
+- Replaced the four public selector entries with full original Git checkouts at
+  pinned historical revisions. Timeline IDs and author dates now come from
+  upstream Git objects, with investigation start time shown separately.
+- Preserved old replay reports and their histories. Synthetic fixtures now label
+  generated commits instead of presenting fixed timestamps as historical dates.
+- Original test suites ran offline: humanize 856 passed; PySnooper 28 passed;
+  Cookiecutter 294 passed / 1 skipped; Commons CSV 53 passed / 2 skipped.
+  None reproduced the known replay defect, so no regression or repair is claimed.
+- Added historical dependency images, generated humanize build assets only in
+  disposable copies, and LF worktrees for Linux tests from Windows checkouts.
+- Mixed passing/skipped suites are reported with incomplete coverage; they cannot
+  verify repairs. Existing upstream edits are rejected and preserved.
+- Backend validation: 35 passed, 14 optional checks skipped, 33 subtests passed,
+  with the four full upstream Docker suites enabled. Frontend build/lint passed.
+- FileSync and environment secrets were untouched.

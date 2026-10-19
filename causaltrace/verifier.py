@@ -8,6 +8,8 @@ from causaltrace.test_runner import run_pytest, is_failure, same_tests
 
 
 def run_command(args, cwd):
+    if args[:3] == ["git", "worktree", "add"]:
+        args = ["git", "-c", "core.autocrlf=false", *args[1:]]
     return subprocess.run(
         args,
         cwd=cwd,

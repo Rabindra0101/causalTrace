@@ -231,9 +231,10 @@ https://nebiusglobalaihackathon.devpost.com/rules
 
 MIT license.
 
-## Public-project bug replays
+## Public upstream investigations
 
-Four distinct regression tests are available for humanize, PySnooper,
-Cookiecutter and Apache Commons CSV. Select a **public bug replay** in the
-repository dropdown. See [PUBLIC_DEMOS.md](PUBLIC_DEMOS.md) for pinned source
-provenance, limitations, runner images and Docker verification commands.
+humanize, PySnooper, Cookiecutter and Apache Commons CSV now use full original
+upstream checkouts, committed tests and authentic commit dates. See
+[PUBLIC_DEMOS.md](PUBLIC_DEMOS.md) for pinned revisions, actual test outcomes,
+runner preparation and investigation commands. Earlier reconstructed replay
+reports remain distinguishable from new upstream reports.

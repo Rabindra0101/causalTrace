@@ -12,7 +12,8 @@ def metadata(name):
     return json.loads((ROOT / 'public_demos' / name / 'replay.json').read_text(encoding='utf-8'))
 
 def catalog():
-    return [{'id': name, 'name': metadata(name)['name'] + ' (public bug replay)'} for name in PUBLIC_IDS]
+    from causaltrace.upstream_projects import profile
+    return [{'id': name, 'name': profile(name)['name'] + ' (full upstream repository)'} for name in PUBLIC_IDS]
 
 def ensure_public_demo(name):
     from causaltrace.demo_setup import git, _setup_lock

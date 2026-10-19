@@ -124,12 +124,20 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     }
     from causaltrace.public_demos import PUBLIC_IDS, metadata
     if repository_id in PUBLIC_IDS:
-        info = metadata(repository_id)
-        report["provenance"] = {key: info[key] for key in ("name", "source", "upstream_fixed", "note")}
+        from causaltrace.upstream_projects import provenance, profile
+        if git(repo, "remote").splitlines() and git(repo, "remote", "get-url", "origin") == profile(repository_id)["url"]:
+            report["provenance"] = provenance(repository_id)
+        else:
+            info = metadata(repository_id)
+            report["provenance"] = {key: info[key] for key in ("name", "source", "upstream_fixed", "note")}
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
     if not is_failure(baseline):
+        if baseline.get("status") == "pass_with_skips":
+            report["status"] = "no_failure"
+            report["reason"] = f"No failure reproduced among executed upstream tests. Skipped tests: {len(baseline.get('skipped_ids', []))}; coverage is incomplete and no repair is verified."
+            return persist(report, reports_root)
         report["setup_issues"] = setup_issues(baseline)
         report["status"] = "no_failure" if baseline.get("passed") else "execution_error"
         report["reason"] = ("Committed tests pass." if baseline.get("passed") else

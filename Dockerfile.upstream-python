@@ -1,0 +1,24 @@
+FROM python:3.11-slim-bookworm AS humanize
+RUN apt-get update && apt-get install -y --no-install-recommends git gettext && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir pytest==9.1.1 freezegun==1.5.5 pytest-benchmark==5.2.3 hatchling==1.27.0 hatch-vcs==0.5.0
+RUN useradd --create-home --uid 10001 runner
+ENV CAUSALTRACE_UPSTREAM_PROJECT=humanize HOME=/tmp PYTHONWARNINGS=default
+USER runner
+WORKDIR /workspace
+
+FROM python:3.8-slim-bookworm AS legacy
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir pytest==6.2.5
+RUN useradd --create-home --uid 10001 runner
+ENV HOME=/tmp PYTHONWARNINGS=ignore::DeprecationWarning
+WORKDIR /workspace
+
+FROM legacy AS pysnooper
+RUN pip install --no-cache-dir python_toolbox==1.0.11
+ENV CAUSALTRACE_UPSTREAM_PROJECT=pysnooper
+USER runner
+
+FROM legacy AS cookiecutter
+RUN pip install --no-cache-dir binaryornot==0.4.4 Jinja2==2.11.3 click==7.1.2 poyo==0.5.0 jinja2-time==0.2.0 python-slugify==4.0.1 requests==2.31.0 MarkupSafe==1.1.1 pytest-cov==2.12.1 pytest-mock==3.6.1 freezegun==1.1.0
+ENV CAUSALTRACE_UPSTREAM_PROJECT=cookiecutter
+USER runner

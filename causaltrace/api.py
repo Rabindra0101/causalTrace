@@ -14,7 +14,8 @@ from pydantic import BaseModel, Field
 
 from causaltrace.build_api import router as build_router
 from causaltrace.demo_setup import DEMO_IDS, demo_catalog, ensure_demo
-from causaltrace.public_demos import PUBLIC_IDS, JAVA_IMAGE
+from causaltrace.public_demos import PUBLIC_IDS, ensure_public_demo
+from causaltrace import upstream_projects
 from causaltrace.nemotron_client import configuration
 from causaltrace.pipeline import run_investigation
 from causaltrace.test_runner import docker_status
@@ -97,8 +98,8 @@ def run(request: InvestigationRequest):
         raise HTTPException(409, "An investigation is already running.")
     try:
         repository = repository if repository is not None else ensure_demo(request.repository_id)
-        runner = ("maven" if request.repository_id == "commons_csv" else "pytest") if request.repository_id in PUBLIC_IDS else request.test_runner
-        image = request.runner_image or (JAVA_IMAGE if request.repository_id == "commons_csv" else None)
+        runner = upstream_projects.profile(request.repository_id)["runner"] if request.repository_id in PUBLIC_IDS else request.test_runner
+        image = request.runner_image or (upstream_projects.profile(request.repository_id)["image"] if request.repository_id in PUBLIC_IDS else None)
         selected_runner = committed_runner(repository, directory, runner)
         if request.install_dependencies or request.build_frontend:
             if selected_runner == "pytest":
@@ -135,9 +136,11 @@ def timeline(repository_id: str, report_id: str | None = None):
         raise HTTPException(400, "Report belongs to a different repository.")
     tested = {row["commit"]: row["status"] for row in (report or {}).get("regression", {}).get("history", [])}
     try:
-        repo = ensure_demo(repository_id)
+        legacy_replay = report and repository_id in PUBLIC_IDS and report.get("provenance", {}).get("history_type") != "upstream"
+        repo = ensure_public_demo(repository_id) if legacy_replay else ensure_demo(repository_id)
+        revision = report["baseline_revision"] if report else "HEAD"
         result = subprocess.run(
-            ["git", "log", "-16", "--format=%H%x1f%h%x1f%s%x1f%aI"],
+            ["git", "log", "--first-parent", "-16", "--format=%H%x1f%h%x1f%s%x1f%aI", revision],
             cwd=repo, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=15, check=True,
         )
@@ -150,7 +153,8 @@ def timeline(repository_id: str, report_id: str | None = None):
             commit, short, message, date = fields
             commits.append({"hash": commit, "short_hash": short, "message": message,
                             "date": date, "test_status": tested.get(commit, "not_tested")})
-    return {"repository_id": repository_id, "commits": commits}
+    history_type = ("upstream" if repository_id in PUBLIC_IDS and not (report and report.get("provenance", {}).get("history_type") != "upstream") else "synthetic")
+    return {"repository_id": repository_id, "history_type": history_type, "commits": commits}
 
 
 # After npm run build, one backend process can serve the production frontend too.

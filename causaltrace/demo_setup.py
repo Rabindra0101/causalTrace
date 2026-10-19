@@ -58,9 +58,10 @@ def git(repo, *args):
 
 
 def ensure_demo(repository_id: str) -> Path:
-    from causaltrace.public_demos import PUBLIC_IDS, ensure_public_demo
+    from causaltrace.public_demos import PUBLIC_IDS
+    from causaltrace.upstream_projects import ensure_upstream
     if repository_id in PUBLIC_IDS:
-        return ensure_public_demo(repository_id)
+        return ensure_upstream(repository_id)
     if repository_id not in DEMO_IDS:
         raise ValueError("Repository is not configured.")
     root = PROJECT_ROOT / ".causaltrace" / "demos"

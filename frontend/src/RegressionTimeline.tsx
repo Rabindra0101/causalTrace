@@ -12,6 +12,7 @@ type TimelineCommit = {
 
 type TimelineResponse = {
   repository_id: string
+  history_type?: string
   commits: TimelineCommit[]
 }
 
@@ -29,6 +30,7 @@ export default function RegressionTimeline({
   verified = false,
 }: Props) {
   const [commits, setCommits] = useState<TimelineCommit[]>([])
+  const [historyType, setHistoryType] = useState('synthetic')
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +58,7 @@ export default function RegressionTimeline({
 
         if (!controller.signal.aborted) {
           setCommits(data.commits)
+          setHistoryType(data.history_type ?? 'synthetic')
         }
       } catch (err) {
         if (!controller.signal.aborted) {
@@ -82,7 +85,7 @@ export default function RegressionTimeline({
         <div>
           <h2>Git Regression Timeline</h2>
           <p className="subtitle">
-            Explore recent commits and identify the suspected regression.
+            {historyType === 'upstream' ? 'Original upstream commits and author dates, displayed in your local time zone.' : 'Synthetic demo history; these commits were created for the demonstration.'}
             Untested commits are not classified as passing or failing.
           </p>
         </div>
@@ -131,9 +134,9 @@ export default function RegressionTimeline({
                       )}
                     </span>
                     <span className="timeline-message">{commit.message}</span>
-                    <time dateTime={commit.date}>
-                      {new Date(commit.date).toLocaleString()}
-                    </time>
+                    {historyType === 'upstream' ? <time dateTime={commit.date}>
+                      Author date: {new Date(commit.date).toLocaleString()}
+                    </time> : <span>Generated demo commit</span>}
                   </span>
                 </button>
               )

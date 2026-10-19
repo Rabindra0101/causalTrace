@@ -17,14 +17,14 @@ type Repair = {
   verification: { status: string; reason?: string; before?: TestRun; after?: TestRun | null }
 }
 type Report = {
-  id: string; repository_id: string; status: string; reason: string; investigation_type?: string; test_runner?: string
+  id: string; generated_at?: string; repository_id: string; status: string; reason: string; investigation_type?: string; test_runner?: string
   baseline_revision: string; baseline: TestRun; candidate_diff?: string
   regression?: { confirmed: boolean; suspected_commit?: string; parent_revision?: string }
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
   ai_analysis: { status: string; model?: string; hypothesis?: string; reason?: string }
   repair?: Repair | null
   source_evidence?: { path: string; content: string }[]
-  provenance?: { name: string; source: string; upstream_fixed: string; note: string }
+  provenance?: { name: string; source: string; upstream_fixed?: string; upstream_revision?: string; history_type?: string; note: string }
   setup_issues?: { code: string; message: string; action: string }[]
   evidence_graph?: {
     nodes: { id: string; type: string; data: Record<string, unknown> }[]
@@ -144,7 +144,7 @@ export default function InvestigationDashboard() {
           <option value="local">Local Git repository</option>
         </select>
       </label>
-      {['humanize', 'pysnooper', 'cookiecutter', 'commons_csv'].includes(repository) && <p role="note">Public project bug replay: extracted upstream code and newly authored tests in a reconstructed Git history. The original project is unchanged.</p>}
+      {['humanize', 'pysnooper', 'cookiecutter', 'commons_csv'].includes(repository) && <p role="note">Full upstream repository at a pinned historical revision. Original tests, commit IDs and author dates are preserved. Tests run in disposable containers.</p>}
       {repository === 'local' && <>
         <label className="repository-selector"><span>Test runner</span>
           <select value={testRunner} disabled={running} onChange={e => { setTestRunner(e.target.value); setReport(null) }}>
@@ -231,7 +231,8 @@ export default function InvestigationDashboard() {
         {report.regression.parent_revision && <p>Passing parent: <code>{report.regression.parent_revision}</code></p>}
         {report.candidate_diff && <details><summary>Candidate Git diff</summary><pre className="run-output">{report.candidate_diff}</pre></details>}
       </section>}
-      {report.provenance && <section className="result-card"><h2>Public source provenance</h2><p>{report.provenance.note}</p><a href={report.provenance.source}>Pinned upstream source</a><p>Upstream fixed revision: <code>{report.provenance.upstream_fixed}</code></p></section>}
+      {report.generated_at && <p>Investigation started: <time dateTime={report.generated_at}>{new Date(report.generated_at).toLocaleString()}</time></p>}
+      {report.provenance && <section className="result-card"><h2>Public source provenance</h2><p>{report.provenance.note}</p><a href={report.provenance.source}>Pinned upstream source</a><p>Upstream revision: <code>{report.provenance.upstream_revision ?? report.provenance.upstream_fixed}</code></p></section>}
       {report.repository_id !== 'local' && <RegressionTimeline key={report.id} repositoryId={report.repository_id} reportId={report.id}
         suspectedCommit={report.regression?.suspected_commit}
         verified={report.experiments.commit_reversal?.outcome === 'verified'} />}

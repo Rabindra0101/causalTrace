@@ -278,7 +278,7 @@ def verify(report_id: str, repository=None, directory="."):
 
             if repository is not None:
                 worktree = root / "repo"
-                subprocess.run(["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+                subprocess.run(["git", "-c", "core.autocrlf=false", "worktree", "add", "--detach", str(worktree), "HEAD"],
                                cwd=repository, check=True, capture_output=True, timeout=30)
                 cleanup.callback(subprocess.run, ["git", "worktree", "remove", "--force", str(worktree)],
                                  cwd=repository, check=True, capture_output=True, timeout=30)
