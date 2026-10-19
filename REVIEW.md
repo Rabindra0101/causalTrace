@@ -1,5 +1,16 @@
 # Submission readiness review
 
+## Original repository isolation — October 18, 2026
+
+- Local-path investigations use independent temporary Git snapshots rather than
+  registering experimental worktrees in the source repository.
+- Fixture tests verified a complete historical/reversal investigation preserves
+  all source and Git metadata file hashes and modification timestamps, including
+  a dirty tracked file, an ignored environment file and untracked local work.
+- Verified independent object storage, cleanup after failure, and rejection of
+  report output paths inside the original repository.
+- FileSync was not accessed or modified for these changes or checks.
+
 ## Project preparation update — October 18, 2026
 
 - Added opt-in dependency downloads and frontend builds in disposable per-run

@@ -6,6 +6,13 @@ and **Test runner**. Automatic detection reads committed manifests, in this orde
 Choose a runner explicitly for mixed projects. The same selection is used at
 every revision, before/after reversal, and before/after repair.
 
+Local repository paths are read as committed history into an independent
+temporary Git snapshot using a bundle written outside the source repository.
+Experiments register worktrees only in that snapshot. No status/index refresh,
+stash, checkout, revert or worktree registration runs against your original
+repository. Uncommitted edits and ignored `.env` files stay in place and are not
+included. Reports cannot be saved inside the investigated repository.
+
 | Language | Runner | Evidence |
 |---|---|---|
 | Python | pytest | Collection and per-test plugin events |

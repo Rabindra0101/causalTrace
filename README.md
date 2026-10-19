@@ -84,7 +84,10 @@ template with cp .env.example .env. Remaining commands are the same.
 The dashboard has independent Repository and Investigation type selectors. Choose
 one of the bundled demos or **Local Git repository**, then enter its absolute path
 and a relative, self-contained test directory (default `.`). Local repositories
-must have a committed HEAD and no tracked edits. Select a supported test runner
+must have a committed HEAD. Local-path runs create an independent temporary Git
+snapshot, leaving the original checkout, `.env`, index and worktree metadata
+unchanged. Uncommitted edits are ignored; no stash or commit is required to run.
+Select a supported test runner
 or detect it from committed project manifests. Dependencies must be installed
 in its Docker image. See [MULTILANGUAGE.md](MULTILANGUAGE.md) for setup.
 For non-Python projects, optional preparation can download dependencies and
@@ -127,8 +130,8 @@ python -m causaltrace.main --repo "C:\path\to\your\repository" --test-dir "tests
 ~~~
 
 Set --test-dir to a directory containing the implementation and tests needed for
-execution. Use "." for a small self-contained repository. Commit/stash tracked edits
-first. Source is read from committed HEAD. Untracked application files are
+execution. Use "." for a small self-contained repository.
+Source is read from committed HEAD in an independent snapshot. Untracked application files are
 not included. The entire test directory is mounted read-only into the container;
 it must be self-contained. Dependencies beyond pytest must already exist in your
 runner image, because test containers have no network. Patches are not written to

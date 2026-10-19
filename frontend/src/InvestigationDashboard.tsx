@@ -185,7 +185,7 @@ export default function InvestigationDashboard() {
 
     {!report && !running && <section className="panel"><h2>Start with the configuration regression</h2>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
-      <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Commit or stash tracked edits first. Select the project directory containing its manifest, sources and tests. For non-Python projects, preparation can install dependencies and build assets in a disposable copy. Actual tests run offline.</p>
+      <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Local investigations use an independent snapshot of committed HEAD and history; uncommitted edits are ignored. The original files, .env and Git worktree metadata are not modified. Select the project directory containing its manifest, sources and tests. Preparation and tests run on disposable copies.</p>
       <p>Full investigations send committed source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
     </section>}
 

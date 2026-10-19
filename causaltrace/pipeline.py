@@ -10,6 +10,7 @@ from causaltrace.nemotron_client import configuration
 from causaltrace.test_runner import is_failure, setup_issues
 from causaltrace.language_runner import RUNNER, IMAGE, PREPARATION, committed_runner, is_test_path
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
+from causaltrace.repository_snapshot import independent_snapshot
 
 
 def git(repo, *args):
@@ -87,6 +88,11 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                                         "build_frontend": build_frontend, "frontend_directory": frontend_directory}
                                        if install_dependencies or build_frontend else None)
     try:
+        if repository_id == "local":
+            if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
+                raise ValueError("Reports must be saved outside the investigated repository.")
+            with independent_snapshot(repo) as snapshot:
+                return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
         return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
     finally:
         PREPARATION.reset(preparation_token)
