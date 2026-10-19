@@ -92,6 +92,7 @@ export default function InvestigationDashboard() {
   const [checking, setChecking] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const controlId = useRef<string | null>(null)
+  const requestPending = useRef<string | null>(null)
   const [controlState, setControlState] = useState('running')
   const [controlBusy, setControlBusy] = useState(false)
   const [controlMessage, setControlMessage] = useState('')
@@ -101,6 +102,50 @@ export default function InvestigationDashboard() {
     const timer = window.setInterval(() => setElapsed(Math.floor((Date.now()-started)/1000)), 1000)
     return () => window.clearInterval(timer)
   }, [running])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let timer: number | undefined
+    async function poll() {
+      const knownId = controlId.current
+      try {
+        const status = await fetch('/api/investigation-status' + (knownId ? `?control_id=${knownId}` : ''), {signal:controller.signal}).then(jsonResponse)
+        if (controller.signal.aborted) return
+        if (status.active) {
+          const reconnected = controlId.current !== status.control_id
+          controlId.current = status.control_id
+          setRunning(true); setControlState(status.state); setError('')
+          if (reconnected) {
+            setRepository(status.repository_id); setInvestigationType(status.investigation_type)
+            setReport(null)
+            setControlMessage('Reconnected to the active investigation. You can pause, resume or stop it here.')
+          }
+        } else if (knownId && controlId.current === knownId && (!requestPending.current || status.completed)) {
+          if (status.completed?.report_id) {
+            try {
+              const result = await fetch(`/api/investigation?report_id=${status.completed.report_id}`, {signal:controller.signal}).then(jsonResponse)
+              if (controller.signal.aborted || controlId.current !== knownId) return
+              setReport(result)
+            } catch {
+              if (controller.signal.aborted || controlId.current !== knownId) return
+              setError('Investigation finished, but its saved report could not be loaded. Check the backend terminal.')
+            }
+          } else if (!requestPending.current) {
+            setError('The investigation ended without a report, or the backend restarted. Check the backend terminal before trying again.')
+          }
+          if (controlId.current === knownId) {
+            controlId.current = null; setRunning(false); setControlMessage('')
+          }
+        }
+      } catch {
+        // A transient polling failure must not mark an active backend job idle.
+      } finally {
+        if (!controller.signal.aborted) timer = window.setTimeout(() => void poll(), 1500)
+      }
+    }
+    void poll()
+    return () => {controller.abort(); window.clearTimeout(timer)}
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -121,7 +166,9 @@ export default function InvestigationDashboard() {
   }
 
   async function run() {
-    controlId.current = crypto.randomUUID().replaceAll('-', '')
+    const runId = crypto.randomUUID().replaceAll('-', '')
+    controlId.current = runId
+    requestPending.current = runId
     setControlState('running'); setControlMessage('')
     setElapsed(0); setRunning(true); setError(''); setReport(null)
     try {
@@ -139,7 +186,10 @@ export default function InvestigationDashboard() {
       }).then(jsonResponse)
       setReport(data.report)
     } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
-    finally { setRunning(false); controlId.current = null; setControlMessage('') }
+    finally {
+      if (requestPending.current === runId) requestPending.current = null
+      if (controlId.current === runId) {setRunning(false); controlId.current = null; setControlMessage('')}
+    }
   }
 
   async function control(action: 'pause' | 'resume' | 'stop') {

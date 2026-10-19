@@ -40,6 +40,9 @@ or provider request finishes first. Pausing waits in the same run; stopping
 releases temporary worktrees and saves completed commit results in a partial
 report. A stopped run does not claim a completed diagnosis or verified repair.
 These controls require the same running backend process; restarting it ends the run.
+Refreshing or reopening the page reconnects to an active investigation and restores
+its controls. The page loads the saved report when that investigation finishes.
+Only one investigation runs at a time; additional run requests return HTTP 409.
 
 Open **http://127.0.0.1:8000**. The backend serves `frontend/dist` after a build;
 restart it when that build changes. For frontend development, run `npm.cmd run dev`

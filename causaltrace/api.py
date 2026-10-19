@@ -28,6 +28,7 @@ REPORTS_ROOT = PROJECT_ROOT / "reports"
 investigation_lock = threading.Lock()
 controls = {}
 controls_lock = threading.Lock()
+recent_runs = {}
 log = logging.getLogger("causaltrace")
 app = FastAPI(title="CausalTrace API", version="0.4.0")
 
@@ -116,6 +117,9 @@ def run(request: InvestigationRequest):
     if not investigation_lock.acquire(blocking=False):
         raise HTTPException(409, "An investigation is already running.")
     control = Control()
+    control.repository_id = request.repository_id
+    control.investigation_type = request.investigation_type
+    control.report_id = None
     with controls_lock:
         controls[request.control_id] = control
     control_token = ACTIVE_CONTROL.set(control)
@@ -144,6 +148,7 @@ def run(request: InvestigationRequest):
                                    good_ref=request.good_ref, bad_ref=request.bad_ref, max_repair_attempts=request.max_repair_attempts,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
+        control.report_id = report.get('id')
         return {"status": report["status"], "report": report}
     except HTTPException:
         raise
@@ -156,7 +161,25 @@ def run(request: InvestigationRequest):
         ACTIVE_CONTROL.reset(control_token)
         with controls_lock:
             controls.pop(request.control_id, None)
+            recent_runs[request.control_id] = {'control_id':request.control_id, 'state':'finished',
+                'report_id':control.report_id, 'repository_id':request.repository_id,
+                'investigation_type':request.investigation_type}
+            while len(recent_runs) > 20:
+                recent_runs.pop(next(iter(recent_runs)))
         investigation_lock.release()
+
+
+@app.get('/api/investigation-status')
+def investigation_status(control_id: str | None = None):
+    """Reconnect to in-process work without starting a second investigation."""
+    with controls_lock:
+        if controls:
+            run_id, control = next(iter(controls.items()))
+            with control.condition:
+                return {'active':True, 'control_id':run_id, 'state':control.state,
+                        'repository_id':control.repository_id, 'investigation_type':control.investigation_type,
+                        'completed_commits':len({row['commit'] for row in control.results})}
+        return {'active':False, 'completed':recent_runs.get(control_id) if control_id else None}
 
 
 class ControlRequest(BaseModel):

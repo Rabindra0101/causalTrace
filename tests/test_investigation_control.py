@@ -81,3 +81,58 @@ def test_control_api_is_scoped_to_active_id_and_validates_actions():
         assert client.post(url,json={'action':'resume'}).json()['state']=='stopping'
         assert client.post(url,json={'action':'invalid'}).status_code==422
         assert client.post('/api/investigation-control/'+('c'*32),json={'action':'stop'}).status_code==404
+
+
+def test_refreshed_client_discovers_active_job_and_finished_report(tmp_path):
+    run_id, report_id = 'd'*32, 'e'*32
+    started, finish = threading.Event(), threading.Event()
+    errors = []
+    def investigate(*args, **kwargs):
+        started.set()
+        assert finish.wait(10)
+        return {'id':report_id,'status':'stopped'}
+    def work():
+        try:
+            api.run(api.InvestigationRequest(control_id=run_id,investigation_type='reproduce'))
+        except BaseException as error:
+            errors.append(error)
+    with patch.object(api,'ensure_demo',return_value=tmp_path), \
+         patch.object(api,'committed_runner',return_value='pytest'), \
+         patch.object(api,'docker_status',return_value={'ready':True}), \
+         patch.object(api,'run_investigation',side_effect=investigate):
+        thread = threading.Thread(target=work)
+        thread.start()
+        try:
+            assert started.wait(10)
+            # A fresh client has no run ID but must rediscover the running job.
+            client = TestClient(api.app)
+            status = client.get('/api/investigation-status').json()
+            assert status['active']
+            assert status['control_id']==run_id
+            assert status['repository_id']=='config'
+            assert status['investigation_type']=='reproduce'
+            assert client.post('/api/run-investigation',json={}).status_code==409
+            assert client.post('/api/investigation-control/'+run_id,json={'action':'pause'}).status_code==200
+            assert client.get('/api/investigation-status').json()['state']=='paused'
+            client.post('/api/investigation-control/'+run_id,json={'action':'stop'})
+            assert client.get('/api/investigation-status').json()['state']=='stopping'
+        finally:
+            finish.set()
+            thread.join(15)
+    assert not errors
+    completed = client.get('/api/investigation-status?control_id='+run_id).json()
+    assert not completed['active']
+    assert completed['completed']['report_id']==report_id
+    assert client.get('/api/investigation-status?control_id='+('f'*32)).json()['completed'] is None
+    assert not api.investigation_lock.locked()
+
+
+def test_setup_failure_clears_active_job_and_lock(tmp_path):
+    client = TestClient(api.app)
+    run_id = 'a'*32
+    with patch.object(api,'ensure_demo',side_effect=RuntimeError('Setup failed')):
+        assert client.post('/api/run-investigation',json={'control_id':run_id}).status_code==400
+    assert not api.investigation_lock.locked()
+    status = client.get('/api/investigation-status?control_id='+run_id).json()
+    assert not status['active']
+    assert status['completed']['report_id'] is None
