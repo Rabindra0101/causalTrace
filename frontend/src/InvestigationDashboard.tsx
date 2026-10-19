@@ -17,7 +17,7 @@ type Repair = {
   verification: { status: string; reason?: string; before?: TestRun; after?: TestRun | null }
 }
 type Report = {
-  id: string; repository_id: string; status: string; reason: string
+  id: string; repository_id: string; status: string; reason: string; investigation_type?: string
   baseline_revision: string; baseline: TestRun; candidate_diff?: string
   regression?: { confirmed: boolean; suspected_commit?: string; parent_revision?: string }
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
@@ -35,7 +35,10 @@ type Health = {
 }
 
 async function jsonResponse(response: Response) {
-  const data = await response.json()
+  const text = await response.text()
+  let data
+  try { data = JSON.parse(text) }
+  catch { throw new Error('Backend unavailable. Start the backend on port 8000 and try again.') }
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Request failed')
   return data
 }
@@ -59,6 +62,9 @@ function ExperimentCard({ title, experiment }: { title: string; experiment?: Exp
 export default function InvestigationDashboard() {
   const [repositories, setRepositories] = useState<{ id: string; name: string }[]>([])
   const [repository, setRepository] = useState('config')
+  const [repositoryPath, setRepositoryPath] = useState('')
+  const [testDirectory, setTestDirectory] = useState('.')
+  const [investigationType, setInvestigationType] = useState('full')
   const [health, setHealth] = useState<Health | null>(null)
   const [report, setReport] = useState<Report | null>(null)
   const [running, setRunning] = useState(false)
@@ -88,7 +94,8 @@ export default function InvestigationDashboard() {
     try {
       const data = await fetch('/api/run-investigation', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repository_id: repository }),
+        body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
+          test_directory: testDirectory, investigation_type: investigationType }),
       }).then(jsonResponse)
       setReport(data.report)
     } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
@@ -101,14 +108,31 @@ export default function InvestigationDashboard() {
       <h1>CausalTrace</h1>
       <p className="subtitle">Find the breaking change. Explain it. Test the repair.</p>
     </div><div className="header-actions">
-      <label className="repository-selector"><span>Demo repository</span>
+      <label className="repository-selector"><span>Repository</span>
         <select value={repository} disabled={running || !repositories.length}
           onChange={e => { setRepository(e.target.value); setReport(null); setError('') }}>
           {repositories.map(repo => <option value={repo.id} key={repo.id}>{repo.name}</option>)}
+          <option value="local">Local Git repository</option>
         </select>
       </label>
-      <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !health?.docker.ready}
-        onClick={() => void run()}>{running ? 'Investigating…' : 'Run full investigation'}</button>
+      {repository === 'local' && <>
+        <label className="repository-selector"><span>Absolute repository path</span>
+          <input value={repositoryPath} disabled={running} placeholder="C:\\projects\\my-repo"
+            onChange={e => { setRepositoryPath(e.target.value); setReport(null) }} /></label>
+        <label className="repository-selector"><span>Test directory (relative to repository)</span>
+          <input value={testDirectory} disabled={running} placeholder="."
+            onChange={e => { setTestDirectory(e.target.value); setReport(null) }} /></label>
+      </>}
+      <label className="repository-selector"><span>Investigation type</span>
+        <select value={investigationType} disabled={running}
+          onChange={e => { setInvestigationType(e.target.value); setReport(null) }}>
+          <option value="full">Full investigation and repair</option>
+          <option value="regression">Git regression and reversal</option>
+          <option value="reproduce">Reproduce failure only</option>
+        </select>
+      </label>
+      <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !health?.docker.ready || (repository === 'local' && !repositoryPath.trim())}
+        onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}</button>
     </div></header>
 
     <section className="panel setup-panel"><h2>Readiness</h2>
@@ -119,12 +143,16 @@ export default function InvestigationDashboard() {
       <button className="doctor-secondary" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : 'Check setup again'}</button>
     </section>
 
-    {running && <p role="status" className="investigation-progress">Reproducing the failure → testing Git revisions → reversing candidate changes → requesting a Nemotron repair → testing the patch. This may take several minutes.</p>}
+    {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
+      ? 'Testing committed HEAD in Docker.'
+      : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
+      : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} This may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}
 
     {!report && !running && <section className="panel"><h2>Start with the configuration regression</h2>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
-      <p className="subtitle">The selected demo is the repository being investigated. Your application folder is not automatically scanned.</p>
+      <p className="subtitle">Choose a bundled demo or enter a local Git repository path. Local investigations use committed Python files and pytest; commit or stash tracked edits first. The test directory must be self-contained, and its dependencies must exist in the Docker runner.</p>
+      <p>Full investigations send committed Python source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
     </section>}
 
     {report && <>
@@ -139,14 +167,14 @@ export default function InvestigationDashboard() {
         {report.regression.parent_revision && <p>Passing parent: <code>{report.regression.parent_revision}</code></p>}
         {report.candidate_diff && <details><summary>Candidate Git diff</summary><pre className="run-output">{report.candidate_diff}</pre></details>}
       </section>}
-      <RegressionTimeline key={report.id} repositoryId={report.repository_id} reportId={report.id}
+      {report.repository_id !== 'local' && <RegressionTimeline key={report.id} repositoryId={report.repository_id} reportId={report.id}
         suspectedCommit={report.regression?.suspected_commit}
-        verified={report.experiments.commit_reversal?.outcome === 'verified'} />
+        verified={report.experiments.commit_reversal?.outcome === 'verified'} />}
       {report.experiments.commit_reversal && <section className="panel"><h2>3. Reversal experiments</h2>
         <div className="experiment-grid"><ExperimentCard title="Suspected breaking change" experiment={report.experiments.commit_reversal} />
           <ExperimentCard title="Alternative: latest commit" experiment={report.experiments.alternative_reversal} /></div>
       </section>}
-      <section className="panel"><h2>4. Nemotron analysis <span className="run-badge">{report.ai_analysis.status}</span></h2>
+      {(!report.investigation_type || report.investigation_type === 'full') && <><section className="panel"><h2>4. Nemotron analysis <span className="run-badge">{report.ai_analysis.status}</span></h2>
         {report.ai_analysis.reason && <p role="status">{report.ai_analysis.reason}</p>}
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.ai_analysis.hypothesis ?? 'No model analysis was performed for this run.'}</ReactMarkdown>
         {report.source_evidence && <details><summary>Source files supplied to Nemotron</summary>{report.source_evidence.map(file => <div key={file.path}><h3>{file.path}</h3><pre className="run-output">{file.content}</pre></div>)}</details>}
@@ -161,7 +189,7 @@ export default function InvestigationDashboard() {
           <Output title="After repair" run={report.repair.verification.after} />
           <p className="subtitle">Verification covers the supplied tests. Original repository files are unchanged.</p>
         </> : <p>No proposed repair is available for this run.</p>}
-      </section>
+      </section></>}
       {report.evidence_graph && <section className="panel"><h2>Evidence graph</h2><EvidenceGraph nodes={report.evidence_graph.nodes} edges={report.evidence_graph.edges} /></section>}
     </>}
     <details className="advanced-workspace"><summary>Advanced: investigate pasted logs and Python files</summary><BuildDoctor /></details>

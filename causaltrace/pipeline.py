@@ -77,7 +77,9 @@ def persist(report, reports_root):
     return report
 
 
-def run_investigation(repo, directory, repository_id, reports_root):
+def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full"):
+    if investigation_type not in {"full", "regression", "reproduce"}:
+        raise ValueError("Unknown investigation type.")
     repo = Path(repo).resolve()
     if git(repo, "rev-parse", "--show-toplevel") != str(repo):
         # Windows Git can return slash-normalized paths.
@@ -93,6 +95,7 @@ def run_investigation(repo, directory, repository_id, reports_root):
         "generated_at": datetime.now(timezone.utc).isoformat(), "status": "inconclusive",
         "baseline_revision": git(repo, "rev-parse", "HEAD"), "experiments": {},
         "repair": None, "ai_analysis": {"status": "not_run"},
+        "investigation_type": investigation_type,
     }
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
@@ -100,6 +103,10 @@ def run_investigation(repo, directory, repository_id, reports_root):
     if not is_failure(baseline):
         report["status"] = "no_failure" if baseline.get("passed") else "execution_error"
         report["reason"] = "Committed tests pass." if baseline.get("passed") else "Unable to run the baseline tests. Check Docker and runner setup."
+        return persist(report, reports_root)
+    if investigation_type == "reproduce":
+        report["status"] = "completed"
+        report["reason"] = "Committed HEAD failure reproduced. History, model analysis and repair were not requested."
         return persist(report, reports_root)
     boundary = locate_boundary(repo, directory)
     report["regression"] = boundary
@@ -124,6 +131,12 @@ def run_investigation(repo, directory, repository_id, reports_root):
         alternative = verify_by_reversal(repo, head, test_directory=directory)
         alternative["commit"] = head
         report["experiments"]["alternative_reversal"] = alternative
+    if investigation_type == "regression":
+        report["status"] = "completed"
+        report["reason"] = "Git history and reversal experiments finished. Model analysis and repair were not requested."
+        report["evidence_graph"] = build_investigation_graph(
+            baseline, suspect, "Model analysis was not requested.", primary)
+        return persist(report, reports_root)
     explanation = "Nemotron analysis is unavailable. Review the test and reversal evidence."
     try:
         request = BuildRequest(log=baseline["output"], files=tracked_sources(repo, directory), diff=diff)

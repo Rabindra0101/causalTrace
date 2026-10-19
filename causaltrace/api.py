@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +28,9 @@ app.include_router(build_router)
 
 class InvestigationRequest(BaseModel):
     repository_id: str = "config"
+    repository_path: str | None = None
+    test_directory: str = "."
+    investigation_type: Literal["full", "regression", "reproduce"] = "full"
 
 
 @app.get("/api/health")
@@ -68,16 +72,29 @@ def repositories():
 
 @app.post("/api/run-investigation")
 def run(request: InvestigationRequest):
-    if request.repository_id not in DEMO_IDS:
+    if request.repository_id not in (*DEMO_IDS, "local"):
         raise HTTPException(400, "Repository is not configured.")
+    if request.repository_id == "local":
+        if not request.repository_path or not Path(request.repository_path).is_absolute():
+            raise HTTPException(400, "Enter an absolute local Git repository path.")
+        repository = Path(request.repository_path).resolve()
+        if not repository.is_dir():
+            raise HTTPException(400, "Local repository directory does not exist.")
+        directory = request.test_directory
+        if Path(directory).is_absolute() or not (repository / directory).resolve().is_relative_to(repository):
+            raise HTTPException(400, "Test directory must be relative and inside the repository.")
+    else:
+        repository = None
+        directory = "."
     if not investigation_lock.acquire(blocking=False):
         raise HTTPException(409, "An investigation is already running.")
     try:
         docker = docker_status()
         if not docker["ready"]:
             raise HTTPException(503, docker["reason"])
-        repository = ensure_demo(request.repository_id)
-        report = run_investigation(repository, ".", request.repository_id, REPORTS_ROOT)
+        repository = repository if repository is not None else ensure_demo(request.repository_id)
+        report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
+                                   investigation_type=request.investigation_type)
         return {"status": report["status"], "report": report}
     except HTTPException:
         raise

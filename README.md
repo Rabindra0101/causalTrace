@@ -81,7 +81,23 @@ template with cp .env.example .env. Remaining commands are the same.
 
 ## Which repository is investigated?
 
-The dashboard selects bundled demo repositories, not the CausalTrace application folder.
+The dashboard has independent Repository and Investigation type selectors. Choose
+one of the bundled demos or **Local Git repository**, then enter its absolute path
+and a relative, self-contained test directory (default `.`). Local repositories
+must have a committed HEAD and no tracked edits. Execution uses pytest in the
+Docker runner; additional project dependencies must be installed in that image.
+Original source files remain unchanged. Local results include boundary commit
+IDs and test evidence; the interactive demo timeline is available for demos only.
+
+- **Reproduce failure only** runs tests at committed HEAD.
+- **Git regression and reversal** also searches history and runs reversal controls.
+- **Full investigation and repair** additionally sends committed Python source,
+  test logs and the candidate diff to Nebius, proposes a repair, and tests it.
+
+Only the full mode contacts the model. Review committed sources for secrets
+before using it on your own repository. Keep this local API bound to localhost.
+
+The dashboard defaults to bundled demo repositories, not the CausalTrace application folder.
 Each demo is generated from shipped source recipes with real, local Git commits:
 a passing baseline, an implementation regression, and unrelated documentation.
 They are created lazily under .causaltrace/demos and do not require this ZIP to

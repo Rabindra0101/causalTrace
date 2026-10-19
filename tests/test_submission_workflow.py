@@ -55,6 +55,41 @@ def model_response(messages, **kwargs):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_selected_modes_skip_unrequested_model_and_history_work(self):
+        for mode in ("reproduce", "regression"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as folder, \
+                 patch.object(verifier, "run_pytest", side_effect=trusted_fixture_runner), \
+                 patch.object(pipeline, "investigate") as model:
+                report = pipeline.run_investigation(
+                    demo_setup.ensure_demo("config"), ".", "local", folder, mode)
+                self.assertEqual(report["status"], "completed")
+                self.assertEqual(report["investigation_type"], mode)
+                model.assert_not_called()
+                if mode == "reproduce":
+                    self.assertNotIn("regression", report)
+                    self.assertEqual(report["experiments"], {})
+                else:
+                    self.assertEqual(report["experiments"]["commit_reversal"]["outcome"], "verified")
+
+    def test_local_repository_selection_and_request_validation(self):
+        with TestClient(app) as client, \
+             patch("causaltrace.api.docker_status", return_value={"ready": True}), \
+             patch("causaltrace.api.run_investigation", return_value={"status": "completed"}) as run:
+            repo = demo_setup.ensure_demo("config")
+            response = client.post("/api/run-investigation", json={
+                "repository_id": "local", "repository_path": str(repo),
+                "test_directory": ".", "investigation_type": "reproduce"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(run.call_args.args[:3], (repo.resolve(), ".", "local"))
+            self.assertEqual(run.call_args.kwargs["investigation_type"], "reproduce")
+            for payload in [
+                {"repository_id": "local"},
+                {"repository_id": "local", "repository_path": "relative/path"},
+                {"repository_id": "local", "repository_path": str(repo), "test_directory": ".."},
+                {"investigation_type": "unknown"},
+            ]:
+                self.assertIn(client.post("/api/run-investigation", json=payload).status_code, (400, 422))
+
     def test_all_six_git_demos_have_verified_boundary_reversal_and_repair(self):
         for repository_id in demo_setup.DEMO_IDS:
             with self.subTest(repository=repository_id), tempfile.TemporaryDirectory() as folder:
