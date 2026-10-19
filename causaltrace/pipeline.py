@@ -1,6 +1,7 @@
 """One workflow: reproduce -> locate -> explain -> reverse -> repair -> test."""
 import json
 import uuid
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from causaltrace.language_runner import RUNNER, IMAGE, PREPARATION, committed_ru
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
 from causaltrace.repository_snapshot import independent_snapshot
 
+
+MODEL_CONSENT = ContextVar("share_with_nebius", default=False)
 
 def git(repo, *args):
     return run_command(["git", *args], repo).stdout.strip()
@@ -59,9 +62,56 @@ def locate_boundary(repo, directory, limit=16):
 
 
 def hypothesis_text(diagnosis):
-    return ("### Likely Root Cause\n" + diagnosis["summary"]
-            + "\n\n### Evidence\n" + "\n".join("- " + s for s in diagnosis["evidence"])
-            + "\n\n### Recommended Fix\n" + "\n".join("- " + s for s in diagnosis["recommended_steps"]))
+    text = ("### Diagnosis and suggestions\n" + diagnosis["summary"]
+            + "\n\n### Evidence\n" + "\n".join("- " + item for item in diagnosis["evidence"])
+            + "\n\n### Recommended next steps\n" + "\n".join("- " + item for item in diagnosis["recommended_steps"]))
+    for key, title in (("suggested_tests", "Suggested tests"), ("improvements", "Optional improvements")):
+        if diagnosis.get(key):
+            text += "\n\n### " + title + "\n" + "\n".join("- " + item for item in diagnosis[key])
+    if diagnosis.get("confidence") not in (None, "unspecified"):
+        text += "\n\nModel confidence (self-reported): " + diagnosis["confidence"]
+    return text
+
+
+def add_ai_suggestions(report, repo, directory, diff=""):
+    """No source/log export or model call without explicit per-run sharing consent."""
+    explanation = "AI suggestions require permission to share selected evidence with Nebius."
+    if not MODEL_CONSENT.get():
+        report["ai_analysis"] = {"status": "consent_required", "reason": explanation}
+        return explanation
+    from causaltrace.diagnostic_context import evidence, bounded_text
+    explanation = "AI suggestions could not be completed. Review the recorded test evidence."
+    try:
+        baseline = report["baseline"]
+        files, scope = evidence(repo, directory, baseline["output"], diff)
+        report["source_context"] = scope
+        context = ("Observed baseline status: " + baseline["status"]
+                   + ". Historical regression boundary confirmed: "
+                   + str(report.get("regression", {}).get("confirmed", False))
+                   + ". Advice is a hypothesis, not verification.\n")
+        request = BuildRequest(log=bounded_text(context + baseline["output"], 40000),
+                               files=files, diff=bounded_text(diff, 20000))
+        report["model_request_attempted"] = True
+        repair = investigate(request)
+        report["repair"] = repair
+        report["source_evidence"] = [file.model_dump() for file in files]
+        explanation = hypothesis_text(repair["diagnosis"])
+        report["ai_analysis"] = {"status": "completed", "provider": repair["provider"],
+            "model": repair["model"], "hypothesis": explanation,
+            "scope": "AI suggestions; Git causality and repair verification are separate."}
+        if repair["patch"] and is_failure(baseline):
+            try:
+                repair["verification"] = verify(repair["id"], repository=repo, directory=directory)
+            except Exception:
+                repair["verification"] = {"status": "inconclusive", "reason": "Patch testing could not be completed. Check runner setup and server logs."}
+        elif repair["patch"]:
+            repair["verification"] = {"status": "not_run", "reason": "No reproduced failing baseline exists; this remains an unverified suggestion."}
+    except Exception:
+        key, model = configuration()
+        report["ai_analysis"] = {"status": "unavailable", "provider": "Nebius Token Factory",
+            "model": model, "hypothesis": "AI suggestions could not be completed.",
+            "reason": "Set NEBIUS_API_KEY and retry." if not key else "Check model access and server logs."}
+    return explanation
 
 
 def persist(report, reports_root):
@@ -81,8 +131,10 @@ def persist(report, reports_root):
 
 def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full",
                       test_runner="auto", runner_image=None, install_dependencies=False,
-                      build_frontend=False, frontend_directory="frontend"):
-    runner_token = RUNNER.set(committed_runner(repo, directory, test_runner))
+                      build_frontend=False, frontend_directory="frontend", share_with_nebius=False):
+    selected_runner = committed_runner(repo, directory, test_runner)
+    consent_token = MODEL_CONSENT.set(share_with_nebius)
+    runner_token = RUNNER.set(selected_runner)
     image_token = IMAGE.set(runner_image)
     preparation_token = PREPARATION.set({"install_dependencies": install_dependencies,
                                         "build_frontend": build_frontend, "frontend_directory": frontend_directory}
@@ -95,13 +147,14 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                 return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
         return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
     finally:
+        MODEL_CONSENT.reset(consent_token)
         PREPARATION.reset(preparation_token)
         IMAGE.reset(image_token)
         RUNNER.reset(runner_token)
 
 
 def _run_investigation(repo, directory, repository_id, reports_root, investigation_type):
-    if investigation_type not in {"full", "regression", "reproduce"}:
+    if investigation_type not in {"full", "diagnose", "regression", "reproduce"}:
         raise ValueError("Unknown investigation type.")
     repo = Path(repo).resolve()
     if git(repo, "rev-parse", "--show-toplevel") != str(repo):
@@ -120,6 +173,7 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
         "repair": None, "ai_analysis": {"status": "not_run"},
         "investigation_type": investigation_type,
         "test_runner": RUNNER.get(),
+        "model_sharing_consent": MODEL_CONSENT.get(),
         "preparation_options": PREPARATION.get(),
     }
     from causaltrace.public_demos import PUBLIC_IDS, metadata
@@ -133,6 +187,11 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
+    if investigation_type == "diagnose":
+        report["reason"] = "AI suggestions from baseline evidence; no Git regression boundary was requested or proven."
+        add_ai_suggestions(report, repo, directory)
+        report["status"] = "completed" if report["ai_analysis"]["status"] == "completed" else "partial"
+        return persist(report, reports_root)
     if not is_failure(baseline):
         if baseline.get("status") == "pass_with_skips":
             report["status"] = "no_failure"
@@ -146,6 +205,8 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
                             "The baseline produced no valid test outcome. Expand test output for missing dependencies, build errors or runner setup details.")
         if report["setup_issues"]:
             report["reason"] = " ".join(issue["message"] for issue in report["setup_issues"])
+        if investigation_type == "full" and not baseline.get("passed"):
+            add_ai_suggestions(report, repo, directory)
         return persist(report, reports_root)
     if investigation_type == "reproduce":
         report["status"] = "completed"
@@ -155,6 +216,9 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     report["regression"] = boundary
     if not boundary["confirmed"]:
         report["reason"] = boundary["reason"]
+        if investigation_type == "full":
+            add_ai_suggestions(report, repo, directory)
+            report["status"] = "partial"
         return persist(report, reports_root)
     suspect = boundary["suspected_commit"]
     diff = git(repo, "show", "--format=", suspect, "--", directory)
@@ -164,6 +228,9 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     if any(is_test_path(p) for p in changed):
         report["reason"] = "The boundary changes tests. Implementation causality requires review."
         report["regression"]["confirmed"] = False
+        if investigation_type == "full":
+            add_ai_suggestions(report, repo, directory, diff)
+            report["status"] = "partial"
         return persist(report, reports_root)
     primary = verify_by_reversal(repo, suspect, test_directory=directory)
     primary["commit"] = suspect
@@ -179,27 +246,7 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
         report["evidence_graph"] = build_investigation_graph(
             baseline, suspect, "Model analysis was not requested.", primary)
         return persist(report, reports_root)
-    explanation = "Nemotron analysis is unavailable. Review the test and reversal evidence."
-    try:
-        request = BuildRequest(log=baseline["output"], files=tracked_sources(repo, directory), diff=diff)
-        repair = investigate(request)
-        report["repair"] = repair
-        report["source_evidence"] = [file.model_dump() for file in request.files]
-        explanation = hypothesis_text(repair["diagnosis"])
-        report["ai_analysis"] = {"status": "completed", "provider": repair["provider"],
-                                 "model": repair["model"], "hypothesis": explanation}
-        if repair["patch"]:
-            repair["verification"] = (verify(repair["id"]) if RUNNER.get() == "pytest" else
-                                      verify(repair["id"], repository=repo, directory=directory))
-    except Exception:
-        # Preserve experimental evidence on missing key, provider outage or malformed response.
-        key, model = configuration()
-        report["ai_analysis"] = {
-            "status": "unavailable", "provider": "Nebius Token Factory", "model": model,
-            "hypothesis": explanation,
-            "reason": "Set NEBIUS_API_KEY and retry." if not key else
-                "Nemotron analysis or repair verification failed. Check model access, credit and server logs.",
-        }
+    explanation = add_ai_suggestions(report, repo, directory, diff)
     report["evidence_graph"] = build_investigation_graph(baseline, suspect, explanation, primary)
     for node in report["evidence_graph"]["nodes"]:
         if node["type"] == "ai_hypothesis":

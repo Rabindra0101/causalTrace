@@ -23,6 +23,7 @@ type Report = {
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
   ai_analysis: { status: string; model?: string; hypothesis?: string; reason?: string }
   repair?: Repair | null
+  source_context?: { selected_files: string[]; omitted_files: string[]; scope: string }
   source_evidence?: { path: string; content: string }[]
   provenance?: { name: string; source: string; upstream_fixed?: string; upstream_revision?: string; history_type?: string; note: string }
   setup_issues?: { code: string; message: string; action: string }[]
@@ -67,6 +68,7 @@ export default function InvestigationDashboard() {
   const [repositoryPath, setRepositoryPath] = useState('')
   const [testDirectory, setTestDirectory] = useState('.')
   const [investigationType, setInvestigationType] = useState('full')
+  const [shareWithNebius, setShareWithNebius] = useState(false)
   const [testRunner, setTestRunner] = useState('auto')
   const [runnerImage, setRunnerImage] = useState('')
   const [installDependencies, setInstallDependencies] = useState(false)
@@ -103,6 +105,7 @@ export default function InvestigationDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
           test_directory: testDirectory, investigation_type: investigationType,
+          share_with_nebius: shareWithNebius,
           test_runner: repository === 'local' ? testRunner : 'pytest',
           runner_image: repository === 'local' ? runnerImage.trim() || null : null,
           install_dependencies: repository === 'local' && installDependencies,
@@ -139,7 +142,7 @@ export default function InvestigationDashboard() {
       <div className="header-actions">
       <label className="repository-selector"><span>Repository</span>
         <select value={repository} disabled={running || !repositories.length}
-          onChange={e => { setRepository(e.target.value); setReport(null); setError('') }}>
+          onChange={e => { setRepository(e.target.value); setShareWithNebius(false); setReport(null); setError('') }}>
           {repositories.map(repo => <option value={repo.id} key={repo.id}>{repo.name}</option>)}
           <option value="local">Local Git repository</option>
         </select>
@@ -161,7 +164,7 @@ export default function InvestigationDashboard() {
             onChange={e => { setRunnerImage(e.target.value); setReport(null) }} /></label>
         <label className="repository-selector"><span>Absolute repository path</span>
           <input value={repositoryPath} disabled={running} placeholder="C:\\projects\\my-repo"
-            onChange={e => { setRepositoryPath(e.target.value); setReport(null) }} /></label>
+            onChange={e => { setRepositoryPath(e.target.value); setShareWithNebius(false); setReport(null) }} /></label>
         <label className="repository-selector"><span>Project / test directory (relative to repository)</span>
           <input value={testDirectory} disabled={running} placeholder="."
             onChange={e => { setTestDirectory(e.target.value); setReport(null) }} /></label>
@@ -179,10 +182,17 @@ export default function InvestigationDashboard() {
         <select value={investigationType} disabled={running}
           onChange={e => { setInvestigationType(e.target.value); setReport(null) }}>
           <option value="full">Full investigation and repair</option>
+          <option value="diagnose">AI diagnosis and development suggestions</option>
           <option value="regression">Git regression and reversal</option>
           <option value="reproduce">Reproduce failure only</option>
         </select>
       </label>
+      {(investigationType === 'full' || investigationType === 'diagnose') && <fieldset className="preparation-options" disabled={running}>
+        <legend>AI analysis with Nebius / Nemotron</legend>
+        <label><input type="checkbox" checked={shareWithNebius} onChange={e => setShareWithNebius(e.target.checked)} /> Share selected evidence with Nebius for this run</label>
+        <p>Sends up to 12 committed source/config files (100,000 characters total), test logs and the candidate diff to Nebius Token Factory. Check your committed source for sensitive information before sharing. Environment files are excluded.</p>
+        <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
+      </fieldset>}
       <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
         onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}<span aria-hidden="true">↗</span></button>
     </div></section>
@@ -202,6 +212,7 @@ export default function InvestigationDashboard() {
 
     {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
       ? 'Testing committed HEAD in Docker.'
+      : investigationType === 'diagnose' ? 'Running baseline checks and preparing evidence-based AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
       : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} This may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}
@@ -210,7 +221,7 @@ export default function InvestigationDashboard() {
       <div className="workflow-strip"><div><span>01</span><strong>Reproduce</strong><p>See the failure as it happened.</p></div><div><span>02</span><strong>Investigate</strong><p>Find the change. Test the cause.</p></div><div><span>03</span><strong>Verify</strong><p>Let unchanged tests judge the repair.</p></div></div>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
       <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Local investigations use an independent snapshot of committed HEAD and history; uncommitted edits are ignored. The original files, .env and Git worktree metadata are not modified. Select the project directory containing its manifest, sources and tests. Preparation and tests run on disposable copies.</p>
-      <p>Full investigations send committed source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
+      <p>Enable evidence sharing for AI diagnosis or full investigations. Git regression and reproduce-only modes run without model requests. Use AI diagnosis for setup/build/import errors or optional improvements even when history cannot prove a regression.</p>
     </section>}
 
     {report && <>
@@ -240,9 +251,10 @@ export default function InvestigationDashboard() {
         <div className="experiment-grid"><ExperimentCard title="Suspected breaking change" experiment={report.experiments.commit_reversal} />
           <ExperimentCard title="Alternative: latest commit" experiment={report.experiments.alternative_reversal} /></div>
       </section>}
-      {(!report.investigation_type || report.investigation_type === 'full') && report.ai_analysis.status !== 'not_run' && <><section className="panel"><h2>4. Nemotron analysis <span className="run-badge">{report.ai_analysis.status}</span></h2>
+      {(!report.investigation_type || report.investigation_type === 'full' || report.investigation_type === 'diagnose') && report.ai_analysis.status !== 'not_run' && <><section className="panel"><h2>4. Nemotron diagnosis and suggestions <span className="run-badge">{report.ai_analysis.status}</span></h2>
         {report.ai_analysis.reason && <p role="status">{report.ai_analysis.reason}</p>}
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.ai_analysis.hypothesis ?? 'No model analysis was performed for this run.'}</ReactMarkdown>
+        {report.source_context && <p>{report.source_context.selected_files.length} selected files analyzed; {report.source_context.omitted_files.length} files omitted by context limits. {report.source_context.scope}</p>}
         {report.source_evidence && <details><summary>Source files supplied to Nemotron</summary>{report.source_evidence.map(file => <div key={file.path}><h3>{file.path}</h3><pre className="run-output">{file.content}</pre></div>)}</details>}
       </section>
       <section className="panel"><h2>5. Proposed repair and test result</h2>

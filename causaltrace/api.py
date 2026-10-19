@@ -33,9 +33,10 @@ class InvestigationRequest(BaseModel):
     repository_id: str = "config"
     repository_path: str | None = None
     test_directory: str = "."
-    investigation_type: Literal["full", "regression", "reproduce"] = "full"
+    investigation_type: Literal["full", "diagnose", "regression", "reproduce"] = "full"
     test_runner: Literal["auto", "pytest", "node", "vitest", "jest", "maven", "go"] = "auto"
     runner_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$")
+    share_with_nebius: bool = False
     install_dependencies: bool = False
     build_frontend: bool = False
     frontend_directory: str = Field(default="frontend", min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9_./-]+$")
@@ -113,6 +114,7 @@ def run(request: InvestigationRequest):
         report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
                                    investigation_type=request.investigation_type,
                                    test_runner=selected_runner, runner_image=image,
+                                   share_with_nebius=request.share_with_nebius,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
         return {"status": report["status"], "report": report}

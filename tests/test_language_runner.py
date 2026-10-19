@@ -116,7 +116,7 @@ class LanguageRunnerTests(unittest.TestCase):
                 "replacements":[{"path":"add.cjs", "old":"a - b", "new":"a + b"}]})
             with patch.object(build_doctor, "complete", return_value=(reply, "mock-model")), \
                  contextlib.redirect_stdout(io.StringIO()):
-                report = pipeline.run_investigation(root, ".", "local", Path(folder) / "reports")
+                report = pipeline.run_investigation(root, ".", "local", Path(folder) / "reports", share_with_nebius=True)
             self.assertEqual(report["test_runner"], "node")
             self.assertEqual(report["experiments"]["commit_reversal"]["outcome"], "verified")
             self.assertEqual(report["experiments"]["alternative_reversal"]["outcome"], "not_supported")

@@ -99,7 +99,7 @@ class WorkflowTests(unittest.TestCase):
                      patch.object(build_doctor, "run_pytest", side_effect=trusted_fixture_runner), \
                      patch.object(build_doctor, "complete", side_effect=model_response), \
                      contextlib.redirect_stdout(io.StringIO()):
-                    report = pipeline.run_investigation(repo, ".", repository_id, folder)
+                    report = pipeline.run_investigation(repo, ".", repository_id, folder, share_with_nebius=True)
                 self.assertEqual(report["status"], "completed")
                 self.assertTrue(report["regression"]["confirmed"])
                 self.assertEqual(report["experiments"]["commit_reversal"]["outcome"], "verified")
@@ -117,7 +117,7 @@ class WorkflowTests(unittest.TestCase):
              patch.object(verifier, "run_pytest", side_effect=trusted_fixture_runner), \
              patch.object(build_doctor, "complete", side_effect=RuntimeError("No key")), \
              contextlib.redirect_stdout(io.StringIO()):
-            report = pipeline.run_investigation(demo_setup.ensure_demo("config"), ".", "config", folder)
+            report = pipeline.run_investigation(demo_setup.ensure_demo("config"), ".", "config", folder, share_with_nebius=True)
         self.assertEqual(report["status"], "partial")
         self.assertEqual(report["ai_analysis"]["status"], "unavailable")
         self.assertEqual(report["experiments"]["commit_reversal"]["outcome"], "verified")
@@ -180,7 +180,7 @@ class WorkflowTests(unittest.TestCase):
              patch.object(build_doctor, "run_pytest", side_effect=trusted_fixture_runner), \
              patch.object(build_doctor, "complete", side_effect=model_response), \
              contextlib.redirect_stdout(io.StringIO()):
-            response = client.post("/api/run-investigation", json={"repository_id": "config"})
+            response = client.post("/api/run-investigation", json={"repository_id": "config", "share_with_nebius": True})
             self.assertEqual(response.status_code, 200, response.text)
             report = response.json()["report"]
             self.assertEqual(report["repair"]["verification"]["status"], "verified")

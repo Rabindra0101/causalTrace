@@ -1,4 +1,4 @@
-"""Investigate Python build failures and verify proposed repairs."""
+"""Diagnose software failures and independently test proposed implementation repairs."""
 
 import difflib
 import json
@@ -42,7 +42,7 @@ class SourceFile(BaseModel):
                 ".json",
                 ".cfg",
                 ".ini",
-                ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go",
+                ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go", ".xml", ".mod",
             }
             or path.name in {"credentials.json", "secrets.json"}
         )
@@ -58,7 +58,7 @@ class SourceFile(BaseModel):
 
 class BuildRequest(BaseModel):
     log: str = Field(min_length=5, max_length=40000)
-    files: list[SourceFile] = Field(min_length=1, max_length=12)
+    files: list[SourceFile] = Field(default_factory=list, max_length=12)
     diff: str = Field(default="", max_length=20000)
 
     @model_validator(mode="after")
@@ -92,6 +92,9 @@ class Diagnosis(BaseModel):
         min_length=1,
         max_length=10,
     )
+    suggested_tests: list[str] = Field(default_factory=list, max_length=8)
+    improvements: list[str] = Field(default_factory=list, max_length=8)
+    confidence: str = Field(default="unspecified", max_length=100)
     replacements: list[Replacement] = Field(
         default_factory=list,
         max_length=8,
@@ -179,7 +182,11 @@ def investigate(request: BuildRequest):
         "Do not claim verification. "
         "Cite source paths/line numbers and exact log excerpts "
         "in evidence. Distinguish observations from hypotheses. "
-        "Handle dependency, import, configuration, API and test failures. "
+        "Handle dependency resolution, imports, configuration and type errors, build/compiler errors, API contracts, null/empty handling, resource handling, concurrency and ordinary logic/test failures. "
+        "Explain why the error happens, actionable next steps, relevant test ideas, and optional evidence-based improvements. "
+        "State uncertainty. If tests passed, do not invent a reproduced bug: label improvements as optional review suggestions. "
+        "When no historical boundary is proven, do not identify a breaking commit or claim Git causality. "
+        "For setup failures suggest dependency/build/environment corrections as instructions. No tests collected is missing coverage, not success. "
         "Suggest the smallest repair. "
         "Never modify tests or conftest.py or weaken assertions. "
         "If evidence is insufficient, explain what is missing "

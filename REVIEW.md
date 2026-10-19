@@ -127,3 +127,23 @@ Do not record a simulated model result as the final demo. Record a fresh live ru
 - Backend validation: 35 passed, 14 optional checks skipped, 33 subtests passed,
   with the four full upstream Docker suites enabled. Frontend build/lint passed.
 - FileSync and environment secrets were untouched.
+
+## General AI diagnosis — October 18, 2026
+
+- Added AI diagnosis/review mode independent of historical boundary discovery.
+  Full-mode setup failures and inconclusive histories can receive suggestions too.
+- Model sharing now requires explicit per-run opt-in, disabled by default, and
+  UI consent resets when selecting a different repository/path. Consent is checked
+  before selecting/exporting evidence or invoking the model.
+- Added bounded source/config context, source-selection disclosure, test ideas,
+  optional improvements and self-reported confidence. Passing baselines never
+  establish reproduced bugs; setup advice stays separate from verified repairs.
+- All source-patch verification now uses the full committed project worktree,
+  preserving fixtures and tests for Python as well as other supported languages.
+- Validation uses mocked model replies. A real Docker import-failure experiment
+  verifies the repair with unchanged tests and original JSON fixtures, with no
+  passing historical parent and no modifications to the source repository.
+- No live project contents were sent to Nebius during this implementation.
+- Final checks: 39 backend tests passed, 19 optional checks skipped, 33 subtests
+  passed. The opt-in Docker diagnosis suite separately passed all 9 checks,
+  including actual import repair verification. Frontend build and lint passed.

@@ -238,3 +238,38 @@ upstream checkouts, committed tests and authentic commit dates. See
 [PUBLIC_DEMOS.md](PUBLIC_DEMOS.md) for pinned revisions, actual test outcomes,
 runner preparation and investigation commands. Earlier reconstructed replay
 reports remain distinguishable from new upstream reports.
+
+## AI diagnosis and development suggestions
+
+Choose **AI diagnosis and development suggestions** to analyze a project's
+baseline without requiring a proven Git regression. Enable **Share selected
+evidence with Nebius for this run** to opt in to a model request. Sharing starts
+disabled and resets when the repository selection/path changes.
+
+The model can explain dependency/import/configuration errors, compiler/build
+failures, API contract and empty-result bugs, and ordinary logic/test failures.
+It returns evidence, likely causes, next steps, suggested regression tests and
+optional development improvements. Passing tests permit optional review advice
+in this mode; they never become a claim that a bug was reproduced.
+
+In **Full investigation and repair**, setup errors, inconclusive history, and
+boundaries involving test changes can still receive AI suggestions after opt-in.
+Those suggestions do not establish which commit caused a failure. Source patches
+are verified against the complete committed project in Docker with original
+fixtures and tests. Dependency/configuration changes are recommendations only;
+CausalTrace does not execute model-suggested installation commands or change
+configuration/tests to manufacture passing results.
+
+The selected evidence is capped at 12 source/config files, 100,000 source
+characters, 40,000 log characters and 20,000 diff characters. It prioritizes files
+mentioned in errors/diffs and manifests. Reports disclose selected/omitted files;
+large files can be omitted. Environment files, hidden paths, credential/secret
+paths and symbolic links are excluded. Review committed code before opting in:
+these exclusions are not a general secret scanner. AI suggestions can be wrong,
+and a verified patch only establishes success for the unchanged tests executed.
+
+Executable adapters currently cover Python/pytest, JavaScript/TypeScript
+(Node/Vitest/Jest), Java/Maven and Go. This is not universal support for every
+language, framework, external service, GUI or hardware environment. Use a prepared
+runner image for additional dependencies. Missing tests or unavailable services
+remain explicit limits in the evidence.
