@@ -37,7 +37,8 @@ class InvestigationRequest(BaseModel):
     runner_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$")
     good_ref: str | None = Field(default=None, min_length=1, max_length=200)
     bad_ref: str = Field(default="HEAD", min_length=1, max_length=200)
-    max_repair_attempts: int = Field(default=3, ge=1, le=5)
+    max_repair_attempts: int = Field(default=3, ge=1, le=10)
+    analysis_profile: Literal["standard", "deep"] = "standard"
     history_limit: int = Field(default=64, ge=2, le=2048)
     share_with_nebius: bool = False
     install_dependencies: bool = False
@@ -130,7 +131,7 @@ def run(request: InvestigationRequest):
         report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
                                    investigation_type=request.investigation_type,
                                    test_runner=selected_runner, runner_image=image,
-                                   share_with_nebius=request.share_with_nebius, history_limit=request.history_limit,
+                                   share_with_nebius=request.share_with_nebius, history_limit=request.history_limit, analysis_profile=request.analysis_profile,
                                    good_ref=request.good_ref, bad_ref=request.bad_ref, max_repair_attempts=request.max_repair_attempts,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)

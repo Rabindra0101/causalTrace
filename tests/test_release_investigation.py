@@ -88,7 +88,7 @@ def test_two_independent_bugs_are_bisected_reversed_and_fixed_iteratively(histor
     assert session['attempts'][0]['verification']['status']=='not_verified'
     assert session['final_tests']['passed']
     assert model.call_count==2
-    assert len(report['regression']['history']) < 13
+    assert len(report['regression']['history']) == 13
     assert (tmp_path/'reports'/(report['id']+'.patch')).is_file()
     assert 'service.py' in session['patch'] and 'test_service.py' not in session['patch']
     assert (repo/'service.py').read_bytes()==original

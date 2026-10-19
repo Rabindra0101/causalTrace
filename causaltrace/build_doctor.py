@@ -18,7 +18,7 @@ from causaltrace.language_runner import is_test_path
 
 class SourceFile(BaseModel):
     path: str = Field(min_length=1, max_length=200)
-    content: str = Field(max_length=30000)
+    content: str = Field(max_length=50000)
 
     @model_validator(mode="after")
     def safe_path(self):
@@ -57,9 +57,9 @@ class SourceFile(BaseModel):
 
 
 class BuildRequest(BaseModel):
-    log: str = Field(min_length=5, max_length=40000)
-    files: list[SourceFile] = Field(default_factory=list, max_length=12)
-    diff: str = Field(default="", max_length=20000)
+    log: str = Field(min_length=5, max_length=60000)
+    files: list[SourceFile] = Field(default_factory=list, max_length=24)
+    diff: str = Field(default="", max_length=40000)
 
     @model_validator(mode="after")
     def unique_paths(self):
@@ -70,9 +70,9 @@ class BuildRequest(BaseModel):
         if any(a != b and b.startswith(a + "/") for a in paths for b in paths):
             raise ValueError("A file path cannot also be another file's directory.")
 
-        if sum(len(file.content) for file in self.files) > 100000:
+        if sum(len(file.content) for file in self.files) > 200000:
             raise ValueError(
-                "Source content exceeds 100,000 characters."
+                "Source content exceeds 200,000 characters."
             )
 
         return self
@@ -80,8 +80,8 @@ class BuildRequest(BaseModel):
 
 class Replacement(BaseModel):
     path: str
-    old: str = Field(min_length=1, max_length=30000)
-    new: str = Field(max_length=30000)
+    old: str = Field(min_length=1, max_length=50000)
+    new: str = Field(max_length=50000)
 
 
 class Diagnosis(BaseModel):
@@ -97,7 +97,7 @@ class Diagnosis(BaseModel):
     confidence: str = Field(default="unspecified", max_length=100)
     replacements: list[Replacement] = Field(
         default_factory=list,
-        max_length=8,
+        max_length=16,
     )
 
 

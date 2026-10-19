@@ -115,14 +115,19 @@ auto-deploy, create a PR, or execute arbitrary shell instructions from the model
 Dependency/configuration changes remain recommendations; source patches cannot
 change tests/configuration or weaken assertions.
 
-Bisection follows first-parent history across at most 2,048 commits, using at
-most 32 cached historical suite runs, 20 failure groups and three distinct
-candidate reversals. It assumes one passing-to-failing transition per test and
+Repair a broken update tests every commit reachable from the broken revision,
+including merge parents and commits before the selected working release. Explain
+an error tests every commit reachable from HEAD before requesting AI suggestions.
+Neither mode has a commit-count cap. Large histories can take a long time.
+Unrelated branch tips that are not ancestors of the selected revision are excluded.
+The 12-file AI source-context limit is separate from history execution.
+Release boundary analysis follows the selected first-parent release range, using
+the cached suite results, up to 20 failure groups and three distinct candidate
+reversals in the standard profile. It assumes one passing-to-failing transition per test and
 confirms an adjacent boundary, not the absence of earlier transient failures.
-Missing/skipped historical evidence stops that search; changed tests prevent a
+Missing/skipped historical evidence remains visible; changed tests prevent a
 claim of implementation causality. Multiple failing tests may share one bug.
-Full-investigation HEAD search is limited to 16 first-parent revisions. The two
-non-AI history modes instead test consecutively through the newest passing/failing
+Full investigation and the two non-AI history modes test consecutively through the newest passing/failing
 transition, with a selectable limit of 16?2,048 commits (default 64). Every tested
 commit is saved with its original date, message, status and output. The timeline
 marks the most recent pass and fail and supports local repositories from persisted

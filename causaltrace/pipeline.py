@@ -12,6 +12,7 @@ from causaltrace.test_runner import is_failure, setup_issues
 from causaltrace.language_runner import RUNNER, IMAGE, PREPARATION, committed_runner, is_test_path
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
 from causaltrace.repository_snapshot import independent_snapshot
+from causaltrace.analysis_policy import ACTIVE_PROFILE, MODEL_USAGE, PROFILES, settings, usage_summary
 
 
 MODEL_CONSENT = ContextVar("share_with_nebius", default=False)
@@ -27,34 +28,67 @@ def locate_boundary(repo, directory, limit=16, baseline=None):
               "--format=%H%x1f%h%x1f%s%x1f%aI", "HEAD")
     commits = [line.split("\x1f", 3) for line in log.splitlines() if len(line.split("\x1f", 3)) == 4]
     rows, latest_pass, latest_fail = [], None, None
-    initial = None
+    latest_partial, latest_error, initial = None, None, None
+    previous_observed = None
     def result(confirmed, reason, **extra):
         return {"confirmed":confirmed, "reason":reason, "history":rows,
                 "latest_pass":latest_pass, "latest_fail":latest_fail,
+                "latest_pass_with_skips":latest_partial, "latest_error":latest_error,
                 "limit":limit, "complete":False, **extra}
     for index, (commit, short, message, date) in enumerate(commits):
         run = baseline if index == 0 and baseline is not None else test_commit(repo, commit, directory)
         state = classify_test_result(run)
+        partial = run.get("status") == "pass_with_skips"
         rows.append({"commit":commit, "short_hash":short, "message":message, "date":date,
                      "status":run.get("status", state), "result":run})
-        if state == "error":
-            return result(False, "History stopped because this commit has unavailable, skipped or incomplete test evidence.", stop_reason="unavailable_evidence")
-        if state == "pass" and latest_pass is None:
-            latest_pass = commit
-        if state == "fail" and latest_fail is None:
-            latest_fail = commit
+        if partial:
+            latest_partial = latest_partial or commit
+            state = "pass"
+        elif state == "error":
+            latest_error = latest_error or commit
+            continue  # Keep the error visible; do not hide older failures.
+        elif state == "pass":
+            latest_pass = latest_pass or commit
+        elif state == "fail":
+            latest_fail = latest_fail or commit
         initial = initial or state
         if state != initial:
+            reliable = all(row["status"] in {"pass", "fail", "collection_error"} for row in rows)
             if initial == "fail":
-                return result(True, "Every commit from HEAD through the adjacent passing/failing boundary was tested.",
-                    suspected_commit=rows[-2]["commit"], parent_revision=commit,
-                    transition="regression", complete=True, stop_reason="transition_found")
-            return result(False, "HEAD passes. The most recent older failing commit and every intervening commit were tested.",
-                transition="recovery", passing_revision=rows[-2]["commit"], failing_revision=commit,
-                complete=True, stop_reason="transition_found")
+                if reliable:
+                    return result(True, "Every commit from HEAD through the adjacent passing/failing boundary was tested.",
+                        suspected_commit=previous_observed, parent_revision=commit,
+                        transition="regression", complete=True, stop_reason="transition_found")
+                return result(False, "Passing/failing results were found. Skipped or unavailable runs remain visible and prevent a verified regression boundary.",
+                    observed_failing_revision=latest_fail, observed_passing_revision=latest_pass or latest_partial,
+                    transition="uncertain", complete=True, stop_reason="transition_with_gaps")
+            reason = ("HEAD passes. The most recent older failing commit and every intervening commit were tested." if reliable else
+                      "An older failing commit was found after passing/partially passing results. Skips and runner errors remain visible; no regression boundary is verified.")
+            return result(False, reason, transition="recovery" if reliable else "uncertain",
+                passing_revision=previous_observed, failing_revision=commit,
+                complete=True, stop_reason="transition_found" if reliable else "transition_with_gaps")
+        previous_observed = commit
     exhausted = len(commits) < limit or (commits and not git(repo, "rev-list", "--parents", "-n", "1", commits[-1][0]).split()[1:])
-    return result(False, "No passing/failing transition was found before " + ("the repository root." if exhausted else f"the {limit}-commit search limit."),
+    return result(False, "All attempted results, including skips and errors, are shown. No passing/failing transition was found before " + ("the repository root." if exhausted else f"the {limit}-commit search limit."),
         stop_reason="repository_root" if exhausted else "search_limit")
+
+
+def test_complete_history(repo, directory, baseline=None):
+    """Execute every commit reachable from the selected HEAD, including merge parents."""
+    rows = []
+    latest_pass = latest_fail = None
+    for line in git(repo, 'log', '--topo-order', '--format=%H%x1f%h%x1f%s%x1f%aI', 'HEAD').splitlines():
+        commit, short, message, date = line.split('\x1f', 3)
+        run = baseline if not rows and baseline is not None else test_commit(repo, commit, directory)
+        rows.append({'commit':commit, 'short_hash':short, 'message':message, 'date':date,
+                     'status':run['status'], 'result':run})
+        if run.get('passed'):
+            latest_pass = latest_pass or commit
+        if is_failure(run):
+            latest_fail = latest_fail or commit
+    return {'confirmed':False, 'history':rows, 'latest_pass':latest_pass, 'latest_fail':latest_fail,
+            'complete':True, 'stop_reason':'repository_root', 'limit':len(rows),
+            'reason':'Every commit reachable from the selected revision was tested, including merge parents. All failures, skips and runner errors remain visible. Timeline ordering alone does not prove causality.'}
 
 
 def hypothesis_text(diagnosis):
@@ -85,8 +119,9 @@ def add_ai_suggestions(report, repo, directory, diff=""):
                    + ". Historical regression boundary confirmed: "
                    + str(report.get("regression", {}).get("confirmed", False))
                    + ". Advice is a hypothesis, not verification.\n")
-        request = BuildRequest(log=bounded_text(context + baseline["output"], 40000),
-                               files=files, diff=bounded_text(diff, 20000))
+        limits = settings()
+        request = BuildRequest(log=bounded_text(context + baseline["output"], limits["log_chars"]),
+                               files=files, diff=bounded_text(diff, limits["diff_chars"]))
         report["model_request_attempted"] = True
         repair = investigate(request)
         report["repair"] = repair
@@ -111,17 +146,23 @@ def add_ai_suggestions(report, repo, directory, diff=""):
 
 
 def persist(report, reports_root):
+    report["analysis_profile"] = ACTIVE_PROFILE.get()
+    report["model_usage"] = usage_summary()
     boundary = report.get("regression", {})
     rows = boundary.get("history", [])
     if rows and all("date" in row for row in rows):
         report["tested_history"] = {
             "history_type": "local" if report["repository_id"] == "local" else report.get("provenance", {}).get("history_type", "synthetic"),
-            "latest_pass": boundary.get("latest_pass"), "latest_fail": boundary.get("latest_fail"),
+            "latest_pass": boundary.get("latest_pass") or next((r["commit"] for r in rows if r["status"] == "pass"), None),
+            "latest_fail": boundary.get("latest_fail") or next((r["commit"] for r in rows if r["status"] in {"fail", "collection_error"}), None),
+            "latest_pass_with_skips": boundary.get("latest_pass_with_skips") or next((r["commit"] for r in rows if r["status"] == "pass_with_skips"), None),
+            "latest_error": boundary.get("latest_error") or next((r["commit"] for r in rows if r["status"] == "error"), None),
             "complete": boundary.get("complete", False), "reason": boundary.get("reason", ""),
             "stop_reason": boundary.get("stop_reason"), "limit": boundary.get("limit"),
             "commits": [{"hash":row["commit"], "short_hash":row["short_hash"], "message":row["message"],
                 "date":row["date"], "test_status":row["status"],
-                "result":{key:row["result"].get(key) for key in ("status", "return_code", "output")}} for row in rows]}
+                "result":{**{key:row["result"].get(key) for key in ("status", "return_code", "output")},
+                          "counts":{key:len(row["result"].get(key+"_ids", [])) for key in ("test", "passed", "failed", "skipped")}}} for row in rows]}
     reports_root = Path(reports_root)
     reports_root.mkdir(parents=True, exist_ok=True)
     content = json.dumps(report, indent=2, ensure_ascii=False)
@@ -138,7 +179,9 @@ def persist(report, reports_root):
 
 def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full",
                       test_runner="auto", runner_image=None, install_dependencies=False,
-                      build_frontend=False, frontend_directory="frontend", share_with_nebius=False, good_ref=None, bad_ref="HEAD", max_repair_attempts=3, history_limit=64):
+                      build_frontend=False, frontend_directory="frontend", share_with_nebius=False, good_ref=None, bad_ref="HEAD", max_repair_attempts=3, history_limit=64, analysis_profile="standard"):
+    if analysis_profile not in PROFILES:
+        raise ValueError("Choose standard or deep analysis.")
     release_selection = None
     if investigation_type == "release":
         from causaltrace.release_investigation import resolve_releases
@@ -146,6 +189,8 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
     if not 2 <= history_limit <= 2048:
         raise ValueError("History limit must be between 2 and 2048 commits.")
     selected_runner = committed_runner(repo, directory, test_runner, revision=release_selection[1] if release_selection else "HEAD")
+    profile_token = ACTIVE_PROFILE.set(analysis_profile)
+    usage_token = MODEL_USAGE.set([])
     history_token = HISTORY_LIMIT.set(history_limit)
     consent_token = MODEL_CONSENT.set(share_with_nebius)
     runner_token = RUNNER.set(selected_runner)
@@ -158,8 +203,8 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
             from causaltrace.release_investigation import resolve_releases, run_release
             if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
                 raise ValueError("Reports must be outside the investigated repository.")
-            if not 1 <= max_repair_attempts <= 5:
-                raise ValueError("Choose between 1 and 5 repair attempts.")
+            if not 1 <= max_repair_attempts <= settings()["repair_attempts"]:
+                raise ValueError("Repair attempts exceed the selected analysis profile limit.")
             good, bad, revisions = release_selection
             with independent_snapshot(repo, revision=bad) as snapshot:
                 selected_directory = (snapshot / directory).resolve()
@@ -175,6 +220,8 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                 return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
         return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
     finally:
+        ACTIVE_PROFILE.reset(profile_token)
+        MODEL_USAGE.reset(usage_token)
         HISTORY_LIMIT.reset(history_token)
         MODEL_CONSENT.reset(consent_token)
         PREPARATION.reset(preparation_token)
@@ -216,17 +263,18 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
-    if investigation_type in {"reproduce", "regression"}:
+    if investigation_type in {"full", "reproduce", "regression"}:
         history = locate_boundary(repo, directory, limit=HISTORY_LIMIT.get(), baseline=baseline)
         report["regression"] = history
-        if investigation_type == "reproduce" or not history["confirmed"]:
+        if investigation_type == "reproduce" or (investigation_type == "regression" and not history["confirmed"]):
             report["status"] = ("execution_error" if baseline.get("execution_error") else
                                 "no_failure" if baseline.get("passed") else
                                 "completed" if history["complete"] else "inconclusive")
             report["reason"] = history["reason"]
             return persist(report, reports_root)
     if investigation_type == "diagnose":
-        report["reason"] = "AI suggestions from baseline evidence; no Git regression boundary was requested or proven."
+        report['regression'] = test_complete_history(repo, directory, baseline)
+        report["reason"] = "All reachable commits were tested. AI suggestions explain the selected revision; historical results alone do not prove causality."
         add_ai_suggestions(report, repo, directory)
         report["status"] = "completed" if report["ai_analysis"]["status"] == "completed" else "partial"
         return persist(report, reports_root)

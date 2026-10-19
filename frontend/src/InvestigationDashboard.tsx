@@ -209,12 +209,13 @@ export default function InvestigationDashboard() {
         <label className="repository-selector"><span>Last working release (tag or commit)</span><input value={goodRef} disabled={running} placeholder="v1.0.0 or commit ID" onChange={e => setGoodRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Broken release (tag or commit)</span><input value={badRef} disabled={running} placeholder="HEAD" onChange={e => setBadRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Maximum AI repair attempts</span><select value={maxRepairAttempts} disabled={running} onChange={e => setMaxRepairAttempts(Number(e.target.value))}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-        <p>Tests both releases, bisects failing tests and tries cumulative repairs in an independent snapshot. Download accepted changes as a patch for review. Each repair runs the complete unchanged test suite.</p>
+        <p>Tests every commit reachable from the broken release, including merge parents, with no commit-count cap. Keeps failures, skips and runner errors visible. Then analyzes the selected release range and tries repairs in an independent snapshot. Large histories can take a long time.</p>
       </>}
       {(investigationType === 'full' || investigationType === 'diagnose' || investigationType === 'release') && <fieldset className="preparation-options" disabled={running}>
         <legend>AI analysis with Nebius / Nemotron</legend>
         <label><input type="checkbox" checked={shareWithNebius} onChange={e => setShareWithNebius(e.target.checked)} /> Share selected evidence with Nebius for this run</label>
-        <p>Sends up to 12 committed source/config files (100,000 characters total), test logs and the candidate diff to Nebius Token Factory. Check your committed source for sensitive information before sharing. Environment files are excluded.</p>
+        <p>Sends up to 12 committed source/config files (100,000 characters total), test logs and the candidate diff to Nebius Token Factory. This is a source-context limit, not a commit limit. Check your committed source for sensitive information before sharing. Environment files are excluded.</p>
+        {investigationType === 'diagnose' && <p>Tests every commit reachable from the selected revision, including merge parents, before AI diagnosis. There is no commit-count cap; large histories can take a long time. Every test outcome remains visible.</p>}
         <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
       </fieldset>}
       <button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
@@ -236,8 +237,8 @@ export default function InvestigationDashboard() {
 
     {running && <p role="status" className="investigation-progress" aria-live="polite">{investigationType === 'reproduce'
       ? 'Testing HEAD and each historical commit through the most recent passing/failing transition.'
-      : investigationType === 'release' ? 'Testing both releases, bisecting failures, challenging candidate causes and testing bounded repair attempts.'
-      : investigationType === 'diagnose' ? 'Running baseline checks and preparing evidence-based AI suggestions.'
+      : investigationType === 'release' ? 'Testing all commits reachable from the broken release, analyzing failures and testing bounded repair attempts.'
+      : investigationType === 'diagnose' ? 'Testing all commits reachable from the selected revision before preparing AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
       : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} Elapsed: {elapsed}s. Each result comes from actual tests; longer histories may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}

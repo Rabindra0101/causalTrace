@@ -31,6 +31,54 @@ def runner(repo,revision,directory):
             'failed_ids':['test_contract'] if status=='fail' else [],'collection_errors':[],'skipped_ids':[]}
 
 
+@pytest.mark.parametrize('mode', ['diagnose', 'release'])
+def test_ai_modes_test_entire_history_even_past_transition_and_requested_limit(project,tmp_path,mode):
+    from causaltrace import release_investigation as release
+    repo,passing = project
+    # A recovered HEAD must not hide the twenty older failing revisions.
+    (repo/'state.txt').write_text('pass')
+    git(repo,'add','.')
+    git(repo,'commit','-qm','Recovery')
+    before = git(repo,'rev-parse','HEAD')
+    with patch.object(pipeline,'test_commit',side_effect=runner) as diagnosis_runs, \
+         patch.object(release,'test_commit',side_effect=runner) as release_runs:
+        report = pipeline.run_investigation(repo,'.','local',tmp_path/'reports',mode,
+            test_runner='pytest',history_limit=2,good_ref=passing)
+    rows = report['tested_history']['commits']
+    assert len(rows) == 22
+    assert sum(row['test_status']=='fail' for row in rows) == 20
+    assert rows[0]['test_status'] == rows[-1]['test_status'] == 'pass'
+    assert report['tested_history']['complete']
+    assert (diagnosis_runs if mode=='diagnose' else release_runs).call_count == 22
+    assert git(repo,'rev-parse','HEAD') == before
+    assert git(repo,'status','--porcelain') == ''
+
+
+def test_complete_history_keeps_merge_parent_errors_and_skips(project):
+    repo,passing = project
+    main = git(repo,'rev-parse','HEAD')
+    git(repo,'checkout','-b','side',passing)
+    (repo/'side.txt').write_text('branch change')
+    git(repo,'add','.')
+    git(repo,'commit','-qm','Side branch')
+    side = git(repo,'rev-parse','HEAD')
+    git(repo,'checkout','--detach',main)
+    git(repo,'merge','--no-ff','side','-m','Merge side')
+    def outcomes(repo,revision,directory):
+        result = runner(repo,revision,directory)
+        if revision == side:
+            result.update(status='error',passed=False,execution_error=True,output='Missing historical dependency')
+        elif revision == passing:
+            result.update(status='pass_with_skips',passed=False,skipped_ids=['test_optional'])
+        return result
+    with patch.object(pipeline,'test_commit',side_effect=outcomes) as runs:
+        history = pipeline.test_complete_history(repo,'.')
+    assert runs.call_count == 23
+    assert history['complete']
+    assert any(row['commit']==side and row['status']=='error' for row in history['history'])
+    assert any(row['status']=='pass_with_skips' for row in history['history'])
+
+
 def test_reproduce_saves_every_commit_through_success_and_serves_local_history(project,tmp_path):
     repo,passing=project
     reports=tmp_path/'reports'
@@ -91,16 +139,16 @@ def test_unavailable_historical_evidence_stays_visible(project,tmp_path):
         return runner(repo,commit,directory)
     with patch.object(pipeline,'test_commit',side_effect=unavailable):
         report=pipeline.run_investigation(repo,'.','local',tmp_path/'reports','reproduce',test_runner='pytest')
-    assert [c['test_status'] for c in report['tested_history']['commits']]==['fail','error']
-    assert report['tested_history']['stop_reason']=='unavailable_evidence'
+    assert [c['test_status'] for c in report['tested_history']['commits']]==['fail']+['error']*20
+    assert report['tested_history']['stop_reason']=='repository_root'
     assert report['tested_history']['commits'][-1]['result']['output']=='Docker runner error'
 
 @pytest.mark.skipif(__import__('os').environ.get('CAUSALTRACE_HISTORY_DOCKER_TESTS')!='1',reason='Opt in to real Docker tested-history modes')
-@pytest.mark.parametrize('mode',['reproduce','regression'])
+@pytest.mark.parametrize('mode',['reproduce','regression','diagnose','release'])
 def test_real_docker_modes_show_all_tests_through_last_pass(mode,tmp_path):
     from causaltrace.demo_setup import ensure_demo
     with patch.object(pipeline,'investigate') as model:
-        report=pipeline.run_investigation(ensure_demo('imports'),'.','local',tmp_path/'reports',mode,test_runner='pytest')
+        report=pipeline.run_investigation(ensure_demo('imports'),'.','local',tmp_path/'reports',mode,test_runner='pytest',good_ref='HEAD~2')
     assert [c['test_status'] for c in report['tested_history']['commits']]==['collection_error','collection_error','pass']
     assert all(c['result']['output'] for c in report['tested_history']['commits'])
     assert report['tested_history']['latest_pass']

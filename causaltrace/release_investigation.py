@@ -9,6 +9,7 @@ from causaltrace.diagnostic_context import evidence, bounded_text
 from causaltrace.test_runner import is_failure, same_tests, run_pytest
 from causaltrace.verifier import test_commit, run_command
 from causaltrace.language_runner import is_test_path, RUNNER
+from causaltrace.analysis_policy import settings
 
 
 def git(repo, *args):
@@ -26,9 +27,9 @@ def resolve_releases(repo, good_ref, bad_ref):
     good, bad = resolve(good_ref), resolve(bad_ref)
     if good == bad:
         raise ValueError('Good and bad releases must be different commits.')
-    history = git(repo, 'rev-list', '--first-parent', '--max-count=2049', bad).splitlines()
+    history = git(repo, 'rev-list', '--first-parent', bad).splitlines()
     if good not in history:
-        raise ValueError('The working release must be on the broken release first-parent history within 2,048 commits.')
+        raise ValueError('The working release must be on the broken release first-parent history.')
     return good, bad, list(reversed(history[:history.index(good)+1]))
 
 
@@ -51,7 +52,8 @@ def outcome(result, test_id):
     return 'unknown'
 
 
-def regression_search(repo, directory, revisions, cache, budget=32):
+def regression_search(repo, directory, revisions, cache, budget=None):
+    budget = budget or settings()["history_runs"]
     """Bisect each failed test using cached whole-suite executions; never guess unknowns."""
     good, bad = revisions[0], revisions[-1]
     def run(commit):
@@ -63,21 +65,29 @@ def regression_search(repo, directory, revisions, cache, budget=32):
     groups = []
     failures = list(dict.fromkeys(cache[bad].get('failed_ids', []) + ['collection::'+p for p in cache[bad].get('collection_errors', [])]))
     changed_tests = [p for p in git(repo, 'diff', '--name-only', good, bad, '--', directory).splitlines() if is_test_path(p)]
-    for test_id in failures[:20]:
+    for test_id in failures[:settings()["failure_groups"]]:
         group = {'test_id': test_id, 'confirmed': False, 'reason': '', 'searched': []}
         groups.append(group)
         if outcome(cache[good], test_id) != 'pass':
             group['reason'] = 'This failing test did not pass at the selected working release.'
             continue
         lo, hi = 0, len(revisions)-1
+        unavailable = set()
         while hi-lo > 1:
-            mid = (lo+hi)//2
+            eligible = [i for i in range(lo+1,hi) if i not in unavailable]
+            if not eligible:
+                group['reason'] = 'The remaining interval contains unavailable test evidence; no adjacent boundary can be verified.'
+                break
+            mid = min(eligible, key=lambda i: abs(i-(lo+hi)/2))
             result = run(revisions[mid])
             state = outcome(result, test_id) if result else 'unknown'
             group['searched'].append({'commit': revisions[mid], 'outcome': state})
             if state == 'unknown':
-                group['reason'] = 'Search stopped: unavailable/skipped/missing test evidence or execution budget exhausted.'
-                break
+                if result is None:
+                    group['reason'] = 'Historical execution budget exhausted. All attempted results remain visible.'
+                    break
+                unavailable.add(mid)
+                continue
             if state == 'pass':
                 lo = mid
             else:
@@ -89,12 +99,12 @@ def regression_search(repo, directory, revisions, cache, budget=32):
                 'Tests changed between releases; the observed boundary does not establish implementation causality.')
             group['commit_date'] = git(repo, 'show', '-s', '--format=%aI', revisions[hi])
             group['commit_message'] = git(repo, 'show', '-s', '--format=%s', revisions[hi])
-    return groups, changed_tests, max(0, len(failures)-20)
+    return groups, changed_tests, max(0, len(failures)-settings()["failure_groups"])
 
 
 def reversal_checks(repo, directory, groups):
     """Reverse up to three distinct candidates; assess each failed test separately."""
-    candidates = list(dict.fromkeys(g['suspected_commit'] for g in groups if g['confirmed']))[:3]
+    candidates = list(dict.fromkeys(g['suspected_commit'] for g in groups if g['confirmed']))[:settings()["reversals"]]
     for candidate in candidates:
         related = [g for g in groups if g.get('suspected_commit') == candidate and g['confirmed']]
         result = {'outcome': 'inconclusive', 'reason': 'Reversal could not be evaluated.'}
@@ -142,13 +152,14 @@ def repair_loop(repo, directory, baseline, diff, attempts, consent):
     if not is_failure(baseline):
         result['reason'] = 'No reproducible failing test baseline; repair verification cannot start.'
         return result
+    limits = settings()
     current, feedback = baseline, ''
     base_revision = git(repo, 'rev-parse', 'HEAD')
     for number in range(1, attempts+1):
         files, scope = evidence(repo, directory, current['output'], diff)
         context = ('Release repair experiment. Fix observed failures without changing tests or configuration. '
                    'No commit causality is implied by this request. Previous attempt feedback:\n' + feedback + '\nBASELINE:\n' + current['output'])
-        request = build_doctor.BuildRequest(log=bounded_text(context, 40000), files=files, diff=bounded_text(diff, 20000))
+        request = build_doctor.BuildRequest(log=bounded_text(context, limits["log_chars"]), files=files, diff=bounded_text(diff, settings()["diff_chars"]))
         entry = {'number': number, 'source_context': scope, 'accepted': False}
         result['attempts'].append(entry)
         try:
@@ -204,21 +215,41 @@ def run_release(repo, directory, repository_id, reports_root, good_ref, bad_ref,
         'status': 'inconclusive', 'reason': '', 'baseline_revision': bad, 'test_runner': RUNNER.get(),
         'model_sharing_consent': consent, 'ai_analysis': {'status':'not_run'}, 'repair': None, 'experiments': {},
         'release_range': {'good_ref':good_ref, 'bad_ref':bad_ref, 'good_commit':good, 'bad_commit':bad,
-                          'commits_in_range':len(revisions)-1, 'search_budget':32,
+                          'commits_in_range':len(revisions)-1, 'search_budget':settings()['history_runs'],
                           'assumption':'Each failure has a single pass-to-fail transition; bisection does not rule out untested transient failures.'}}
     from causaltrace.public_demos import PUBLIC_IDS
     if repository_id in PUBLIC_IDS:
         from causaltrace.upstream_projects import provenance
         report['provenance'] = {**provenance(repository_id), 'upstream_revision':bad, 'note':'Original upstream history and tests at the selected broken release. Repair experiments use independent copies.'}
     cache = {good:test_commit(repo, good, directory), bad:test_commit(repo, bad, directory)}
+    history_revisions = git(repo, 'rev-list', '--topo-order', bad).splitlines()
+    for commit in history_revisions:
+        if commit not in cache:
+            cache[commit] = test_commit(repo, commit, directory)
+    report['release_range']['search_budget'] = len(cache)
+    report['release_range']['assumption'] = 'Every commit reachable from the broken release is tested, including merge parents. Per-test boundary analysis uses the selected first-parent release range.'
+    def save():
+        boundary = report.setdefault('regression', {'confirmed':False})
+        boundary['reason'] = 'All commits reachable from the selected broken release were tested. All passing, failing, skipped and error results are shown.'
+        boundary['stop_reason'] = 'repository_root'
+        boundary['complete'] = True
+        rows=[]
+        for commit in history_revisions:
+            if commit not in cache:
+                continue
+            parts=git(repo,'show','-s','--format=%h%x1f%s%x1f%aI',commit).split('\x1f',2)
+            rows.append({'commit':commit,'short_hash':parts[0],'message':parts[1],'date':parts[2],
+                         'status':cache[commit]['status'],'result':cache[commit]})
+        boundary['history']=rows
+        return persist(report,reports_root)
     report['working_baseline'], report['baseline'] = cache[good], cache[bad]
     if not cache[good].get('passed'):
         report['reason'] = 'The selected working release did not pass its full test suite. Choose a verified working release or fix runner setup.'
-        return persist(report, reports_root)
+        return save()
     if not is_failure(cache[bad]):
         report['status'] = 'no_failure' if cache[bad].get('passed') else 'execution_error'
         report['reason'] = 'The selected broken release did not reproduce a valid test failure. Provide a failing regression test or fix runner setup.'
-        return persist(report, reports_root)
+        return save()
     groups, changed_tests, omitted = regression_search(repo, directory, revisions, cache)
     reversal_checks(repo, directory, groups)
     report['failure_groups'] = groups
@@ -229,7 +260,7 @@ def run_release(repo, directory, repository_id, reports_root, good_ref, bad_ref,
     if cache[bad].get('collection_errors'):
         report['reason'] = 'Collection failed before individual tests could be grouped. Repair suggestions can still address the import/collection failure.'
     diff = git(repo, 'diff', good, bad, '--', directory)
-    report['candidate_diff'] = bounded_text(diff, 20000)
+    report['candidate_diff'] = bounded_text(diff, settings()["diff_chars"])
     report['repair_session'] = repair_loop(repo, directory, cache[bad], diff, attempts, consent)
     session = report['repair_session']
     report['model_request_attempted'] = bool(session['attempts'])
@@ -243,4 +274,4 @@ def run_release(repo, directory, repository_id, reports_root, good_ref, bad_ref,
         report['repair_patch_url'] = '/api/investigation/'+report['id']+'/repair.patch'
     for group in groups:
         group['resolved_after_repair'] = outcome(session['final_tests'], group['test_id']) == 'pass'
-    return persist(report, reports_root)
+    return save()

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from causaltrace.analysis_policy import settings, MODEL_USAGE
 
 DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
@@ -13,16 +14,23 @@ def configuration():
     return os.getenv("NEBIUS_API_KEY", ""), os.getenv("NEBIUS_MODEL", DEFAULT_MODEL)
 
 
-def complete(messages, *, structured=False, max_tokens=4000):
+def complete(messages, *, structured=False, max_tokens=None):
+    limits = settings()
+    max_tokens = max_tokens or limits["response_tokens"]
     key, model = configuration()
     if not key:
         raise RuntimeError("Set NEBIUS_API_KEY in the project .env and restart the backend.")
     options = {"response_format": {"type": "json_object"}} if structured else {}
     with OpenAI(api_key=key, base_url="https://api.tokenfactory.nebius.com/v1/",
-                timeout=60, max_retries=0) as client:
+                timeout=limits["timeout"], max_retries=0) as client:
         response = client.chat.completions.create(
             model=model, messages=messages, max_tokens=max_tokens, **options,
         )
+    ledger = MODEL_USAGE.get()
+    if ledger is not None and response.usage is not None:
+        usage = response.usage
+        ledger.append({'model':model, 'prompt_tokens':usage.prompt_tokens or 0,
+                       'completion_tokens':usage.completion_tokens or 0, 'total_tokens':usage.total_tokens or 0})
     choice = response.choices[0]
     if choice.finish_reason == "length":
         raise ValueError("Nemotron response was truncated. Reduce source context and retry.")
