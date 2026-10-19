@@ -1,0 +1,90 @@
+/* Readable defaults in rem units preserve browser text-size preferences. */
+:root { font-size: 100%; }
+.dashboard { font-size: 1.125rem; line-height: 1.65; }
+.dashboard :is(p, li, label, button, input, select, textarea, summary) { overflow-wrap: anywhere; }
+.dashboard :is(input, select, textarea) { max-width: 100%; }
+.dashboard :is(button, select, input:not([type=checkbox]), summary) { min-height: 48px; }
+.dashboard :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #6234a0;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 2px #fff;
+}
+.skip-link { position: absolute; top: 8px; left: 16px; z-index: 1000; padding: 12px 18px; background: #163e35; color: #fff; border-radius: 6px; transform: translateY(-180%); font-size: 1.125rem; }
+.skip-link:focus { transform: translateY(0); }
+.workspace-nav { flex-wrap: wrap; padding-block: 18px; }
+.workspace-nav > div { flex-wrap: wrap; font-size: 1rem; gap: 20px; }
+.workspace-nav a { display: inline-flex; align-items: center; min-height: 48px; }
+.workspace-brand { font-size: 1.5rem; }
+.brand-tag, .local-label { font-size: 1rem; color: #4e655b; }
+.header { padding-block: 40px; min-height: 0; }
+.header h1 { font-size: clamp(2.5rem, 5.1vw, 4.125rem); line-height: 1.15; letter-spacing: -.04em; }
+.header h1 > span { background: none; -webkit-text-fill-color: #087464; color: #087464; }
+.header .subtitle { font-size: 1.25rem; line-height: 1.7; color: #435e50; }
+.eyebrow, .section-kicker { font-size: 1rem; letter-spacing: .08em; }
+.language-chips span { font-size: 1rem; line-height: 1.5; }
+.trace-note span, .trace-note code, .trace-caption { font-size: 1rem; opacity: 1; }
+.trace-note strong { font-size: 1.125rem; }
+.trace-caption { color: #496256; left: 30px; }
+.header-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 24px; }
+.repository-selector { font-size: 1.125rem; color: #344f42; }
+.repository-selector :is(select, input) { font-size: 1.125rem; line-height: 1.5; border-color: #708678; padding: 14px; }
+.run-button { grid-column: 1 / -1; justify-self: end; min-width: 16rem; font-size: 1.125rem; min-height: 54px; }
+.run-button:disabled { opacity: 1; background: #e1e7df; color: #52634f; border-color: #8b9a88; }
+.launch-heading, .setup-heading { flex-wrap: wrap; }
+.launch-heading h2, .setup-heading h2, .panel h2 { font-size: 1.75rem; line-height: 1.35; letter-spacing: -.02em; }
+.panel h3, .getting-started h2 { font-size: 1.5rem; line-height: 1.4; }
+.panel p, .getting-started > p:not(.section-kicker) { font-size: 1.125rem; line-height: 1.75; color: #395346; }
+.panel .section-kicker, .getting-started > .section-kicker { font-size: 1rem; color: #675039; }
+.workspace-pill { font-size: 1rem; white-space: normal; color: #315e49; }
+.preparation-options { min-width: 0; }
+.preparation-options legend { font-size: 1.125rem; }
+.preparation-options p { font-size: 1rem; line-height: 1.7; color: #5d496f; }
+.preparation-options > label { display: flex; align-items: center; min-height: 48px; gap: 12px; }
+.preparation-options input[type=checkbox] { flex-shrink: 0; width: 24px; height: 24px; margin: 0; }
+.setup-panel .doctor-secondary { font-size: 1rem; min-height: 48px; color: #365a41; border-color: #708678; }
+.readiness-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.readiness-item strong { font-size: 1.125rem; }
+.readiness-item div > span { font-size: 1rem; color: #435d48; }
+.setup-panel > p { font-size: 1rem; color: #435d48; }
+.workflow-strip strong { font-size: 1.125rem; }
+.workflow-strip p { font-size: 1rem; color: #66533d; }
+.workflow-strip > div > span { font-size: 1rem; color: #72461d; }
+.workflow-strip > div:nth-child(2) > span { color: #613d82; }
+.workflow-strip > div:nth-child(3) > span { color: #315f43; }
+.run-badge, .timeline-count, .timeline-badge, .timeline-untested, .timeline-item time { font-size: 1rem; line-height: 1.5; white-space: normal; }
+.timeline-untested, .timeline-item time { color: #49634f; }
+.timeline-count { color: #674384; }
+.run-badge { color: #205f42; }
+.status-execution_error, .outcome-not_supported { color: #804518; }
+.status-partial, .status-inconclusive, .outcome-inconclusive { color: #644382; }
+.report-download { font-size: 1.125rem; padding-block: 10px; }
+.run-receipt summary, details > summary, .advanced-workspace > summary { font-size: 1.125rem; line-height: 1.65; padding-block: 8px; color: #365a41; }
+.run-output, .evidence-output, .evidence-hash { font-size: 1rem; line-height: 1.75; tab-size: 2; }
+.investigation-progress, p.error[role=alert] { font-size: 1.125rem; line-height: 1.75; }
+.error { color: #a83229; }
+.workspace-footer { font-size: 1rem; color: #49624e; flex-wrap: wrap; }
+.advanced-workspace .doctor :is(p, label, button, input, select, textarea, summary, code, pre, .doctor-kicker) { font-size: 1rem; line-height: 1.65; }
+.advanced-workspace .doctor :is(button, select, input:not([type=checkbox])) { min-height: 48px; }
+.dashboard .react-flow__edge-text { font-size: 16px; }
+.dashboard .react-flow__node { font-size: 1rem; }
+.dashboard .react-flow__controls-button { width: 48px; height: 48px; }
+.evidence-inspector :is(p, h3, h4) { color: #e2e8f0; }
+.evidence-inspector :is(small, .subtitle) { color: #b9cbd2; font-size: 1rem; }
+.advanced-workspace .doctor :is(p, label, summary, legend) { color: #dce7f4; }
+.advanced-workspace .doctor :is(h1, h2, h3, h4) { color: #edf5fa; }
+@media (max-width: 1100px) { .trace-art { display: none; } }
+@media (max-width: 650px) {
+  .header-actions, .workflow-strip { grid-template-columns: 1fr; }
+  .run-button { width: 100%; min-width: 0; }
+  .workspace-nav, .workspace-nav > div { gap: 12px; }
+  .workspace-brand { font-size: 1.5rem; }
+  .header .subtitle { font-size: 1.25rem; }
+  .setup-heading h2 { font-size: 1.75rem; }
+  .workflow-strip > div { padding-left: 42px; padding-top: 0; }
+  .workspace-nav > div { font-size: 1rem; }
+  .workspace-nav > div > a { padding-inline: 8px; }
+}
+@media (forced-colors: active) {
+  .header h1 > span { -webkit-text-fill-color: CanvasText; color: CanvasText; }
+  .run-button, .repository-selector :is(select, input) { border: 2px solid ButtonText; }
+}

@@ -310,7 +310,7 @@ export default function EvidenceGraph({ nodes, edges }: Props) {
         },
         labelStyle: {
           fill: '#cbd5e1',
-          fontSize: 11,
+          fontSize: 16,
         },
         labelBgStyle: {
           fill: '#252e49',

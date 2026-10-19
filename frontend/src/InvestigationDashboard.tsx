@@ -114,6 +114,7 @@ export default function InvestigationDashboard() {
   }
 
   return <main className="dashboard">
+    <a className="skip-link" href="#investigation">Skip to investigation controls</a>
     <nav className="workspace-nav" aria-label="Workspace navigation">
       <a className="workspace-brand" href="#top"><span className="brand-symbol" aria-hidden="true">⌘</span>CausalTrace<span className="brand-tag">LAB</span></a>
       <div><a href="#investigation">Investigate</a><a href="#readiness">Readiness</a><span className="local-label">Local workspace</span></div>
@@ -132,7 +133,7 @@ export default function InvestigationDashboard() {
       <div className="trace-caption">A better answer starts with proof.</div>
     </div></header>
 
-    <section className="investigation-launch" id="investigation">
+    <section className="investigation-launch" id="investigation" tabIndex={-1}>
       <div className="launch-heading"><div><p className="section-kicker">YOUR NEXT INVESTIGATION</p><h2>Let’s follow the evidence.</h2></div><span className="workspace-pill">Isolated experiments</span></div>
       <div className="header-actions">
       <label className="repository-selector"><span>Repository</span>
