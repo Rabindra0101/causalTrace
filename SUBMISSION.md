@@ -1,66 +1,68 @@
-# CausalTrace submission draft
+﻿# CausalTrace submission draft
 
-## One-sentence description
+## Description
 
-CausalTrace investigates Python regressions by testing Git history, evaluating
-candidate changes through reversal experiments, and using NVIDIA Nemotron on
-Nebius Token Factory to propose repairs that are checked against unchanged tests.
-
-## Track
-
-Coding and Agentic Engineering.
+CausalTrace finds software regressions by comparing working and broken releases,
+testing Git history, challenging candidate commits with reversal experiments,
+and using NVIDIA Nemotron on Nebius Token Factory to propose code repairs.
+Its bounded coding-agent loop tests each patch and iterates on remaining failures
+in an isolated workspace, producing an evidence report and a reviewable Git patch.
 
 ## Problem and approach
 
-A failing build gives developers symptoms, but a recent commit is not automatically
-the cause. CausalTrace combines historical tests with a control experiment: reverse
-the suspected change, then compare that outcome with reversing an unrelated commit.
-Nemotron receives the measured failure, relevant source and candidate diff to
-explain the hypothesis and propose a minimal source repair. The application tests
-the proposal and distinguishes verified, unsupported and inconclusive outcomes.
+A production update can introduce several bugs in different commits. Logs alone
+do not establish which change caused a failure, and an AI-generated patch is not
+proof of a repair. CausalTrace measures historical tests, separates causal
+experiments from model hypotheses, and accepts incremental repairs only when
+tests improve without losing previous passing outcomes. Original repositories
+remain unchanged.
 
-## What judges can try
+Supported execution adapters cover Python, JavaScript/TypeScript, Java and Go.
+AI suggestions also address imports, configuration, dependency/build failures,
+API contracts, empty/null handling and ordinary logic failures. Model-assisted
+runs require explicit consent to send selected evidence to Nebius.
 
-Follow README.md to install the app and runner. Supply a valid Nebius key in .env.
-Choose Configuration type mismatch and run the full investigation. Inspect the
-historical boundary, compare the two reversals, review the proposed conversion to
-an integer, and inspect before/after repair results. Repeat with Broken package
-import. Download the report for each run. Demo histories are generated locally
-from included recipes; the resulting Git and test evidence is measured at runtime.
+## Judge instructions
 
-## Demonstration sequence: target 2 minutes 40 seconds
+Follow README.md to install the backend, build the frontend and Docker runner,
+and configure a valid Nebius key locally. Start the API on 127.0.0.1:8000.
 
-- 0:00–0:20: Explain the problem: finding a breaking change and validating a repair.
-- 0:20–0:45: Show the configuration scenario and start a live run. Trim waiting time in the video and disclose the cut.
-- 0:45–1:15: Show the failing HEAD, passing parent and identified breaking commit.
-- 1:15–1:45: Compare the verified suspected reversal with the unrelated reversal that still fails.
-- 1:45–2:15: Show the actual Nemotron proposal and failing-to-passing repair tests.
-- 2:15–2:40: Show a second non-math example and the downloaded evidence report; state the current scope.
+1. Choose **Broken package import** and **Full investigation and repair**.
+2. Enable evidence sharing and run. Inspect the measured failure, historical
+   boundary, suspected/control reversals and independently tested model proposal.
+3. Choose **Compare releases and repair regressions** for the same synthetic demo.
+   Use `HEAD~2` as the working release and `HEAD` as the broken release. Enable AI
+   sharing and inspect the boundary and repair attempts. A correct proposal should
+   restore the original import contract; model output is not guaranteed.
+4. Download the evidence report and accepted cumulative patch, if any.
+5. Repeat with a local repository, compatible runner and known good/bad references.
 
-## Scope to state accurately
+Synthetic demo commits are labeled generated. Full public upstream repositories
+have original dates/IDs, but their pinned original test suites currently show no
+reproduced regression. Do not present those as verified failing public projects.
 
-Local Python prototype; six curated repositories with real Git history; explicit
-CLI configuration for other self-contained repositories; pytest-based verification;
-temporary patches; one API process. No automatic GitHub Actions ingestion, universal
-language support, production hosting or unrestricted dependency installation.
+## Suggested demonstration sequence
 
-## Submission items still to fill
+- Explain a working release followed by a broken update.
+- Run the import demo and show actual Git and Docker evidence.
+- Show Nemotron's explanation and proposed code change, then its test result.
+- Show the release agent controls and downloaded report/patch.
+- State the tested scope and the isolation of the source repository.
 
-- Public repository URL with the existing MIT license.
-- Working demo or downloadable test-build URL and complete judge instructions.
-- Public YouTube video link under three minutes.
-- Actual feedback based on your Nebius/NVIDIA usage. Do not invent performance metrics.
-- Confirm the live API key/model account can support the intended judging access.
+Keep the recording concise. Disclose trimmed waiting time and whether a displayed
+model response is live or mocked. Check current official submission requirements
+at https://nebiusglobalaihackathon.devpost.com/rules before publishing.
 
-## Schedule
+## Claims and remaining submission items
 
-- By October 21: validate the connected configuration and import workflows with live Nebius and Docker.
-- October 22–24: resolve only defects found by those runs; validate a clean installation and judge access.
-- October 25–26: record the demo and finalize repository documentation and submission text.
-- October 27–28: verify all links and complete submission, leaving a buffer.
+The automatic regression suite mocks provider responses. The release-agent Docker
+experiment measures two bugs introduced in different commits and two cumulative
+repairs with unchanged tests. It does not validate live Nemotron behavior for that
+experiment. A live judging run requires model access, credit and compatible images.
+Tests cannot establish that an app has zero bugs; production failures require
+reproducible evidence. Search and repair attempts are bounded as documented.
 
-Official rules checked during this review: https://nebiusglobalaihackathon.devpost.com/rules
-The page lists October 30, 2026 at 10:00 a.m. PDT (noon Central). October 28 remains
-the project completion target. The rules require a runtime Nebius/NVIDIA integration,
-a public licensed code repository, demo/test-build access, a project description,
-track selection, tool feedback and a public YouTube demonstration under three minutes.
+- Repository: https://github.com/Rabindra0101/causalTrace (MIT).
+- Provide the final submission URL, usable judge/demo access and video link.
+- Complete actual Nebius/NVIDIA usage feedback without invented metrics.
+- Recheck live model access and credits before the demonstration.

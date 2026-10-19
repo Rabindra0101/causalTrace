@@ -1,9 +1,0 @@
-CausalTrace Demonstration Repository
-
-This repository contains a simple discount calculator.
-
-The calculator is used to demonstrate automated regression
-detection and counterfactual verification.
-
-This file contains documentation only.
-It does not change the calculator's behavior.

@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 
-from causaltrace.build_doctor import BuildRequest, SourceFile, investigate, verify
+from causaltrace.build_doctor import BuildRequest, investigate, verify
 from causaltrace.evidence_graph import build_investigation_graph
 from causaltrace.nemotron_client import configuration
 from causaltrace.test_runner import is_failure, setup_issues
@@ -18,28 +18,6 @@ MODEL_CONSENT = ContextVar("share_with_nebius", default=False)
 
 def git(repo, *args):
     return run_command(["git", *args], repo).stdout.strip()
-
-
-def tracked_sources(repo, test_directory):
-    prefix = Path(test_directory).as_posix().rstrip("/")
-    if prefix == ".":
-        prefix = ""
-    paths = git(repo, "ls-tree", "-r", "--name-only", "HEAD").splitlines()
-    files = []
-    for path in paths:
-        if prefix and not path.startswith(prefix + "/"):
-            continue
-        relative = path[len(prefix) + 1:] if prefix else path
-        if not relative.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go")):
-            continue
-        if (repo / path).is_symlink():
-            raise ValueError("Symbolic links are not supported as repair evidence.")
-        content = run_command(["git", "show", f"HEAD:{path}"], repo).stdout
-        # Preserve complete source lines; the model needs exact fragments for patches.
-        files.append(SourceFile(path=relative, content=content.lstrip("\ufeff")))
-    if not files:
-        raise ValueError("No supported source was found in the configured test directory.")
-    return files
 
 
 def locate_boundary(repo, directory, limit=16):

@@ -1,169 +1,65 @@
-# Submission readiness review
+﻿# Submission validation
 
-## Original repository isolation — October 18, 2026
+## Scope
 
-- Local-path investigations use independent temporary Git snapshots rather than
-  registering experimental worktrees in the source repository.
-- Fixture tests verified a complete historical/reversal investigation preserves
-  all source and Git metadata file hashes and modification timestamps, including
-  a dirty tracked file, an ignored environment file and untracked local work.
-- Verified independent object storage, cleanup after failure, and rejection of
-  report output paths inside the original repository.
-- FileSync was not accessed or modified for these changes or checks.
+CausalTrace is a local evidence-driven regression investigation and bounded
+Nemotron coding-agent prototype. It supports Python/pytest, JavaScript/TypeScript
+(Node/Vitest/Jest), Java/Maven and Go through isolated Docker runners.
 
-## Project preparation update — October 18, 2026
+The release agent compares selected working/broken commits, bisects individual
+failures, reverses candidates and iterates on protected source patches. Accepted
+changes remain in independent disposable snapshots and are exported as a Git
+patch for review. Verified means unchanged executed tests pass, not zero bugs.
 
-- Added opt-in dependency downloads and frontend builds in disposable per-run
-  volumes. A separate network-disabled container executes the actual tests.
-- Verified a downloaded Go module can be used in offline tests, frontend output
-  satisfies Go embed requirements, and preparation failures cannot verify tests.
-- Verified source/test rewrites during preparation are rejected, the original
-  fixture files stay unchanged, `.env` is not copied, and volumes are cleaned up.
-- Added actionable setup diagnostics and separate preparation output in reports.
-- Added an optional Linux GTK/WebKit runner for Wails v2-compatible native code;
-  it does not provide a desktop display or Windows-only build support.
-- Built that image and verified an offline Go/CGO fixture links and calls GTK
-  and WebKit version functions without starting a desktop application.
-- Changes and validation fixtures are confined to CausalTrace. No FileSync files
-  were modified or tested as part of this update.
+## Measured evidence
 
-## Multilingual runner update — October 18, 2026
+- The release-agent Docker experiment reproduced two failures introduced in two
+  different commits, located both boundaries, supported both reversals and
+  verified two cumulative repairs with the complete unchanged suite passing.
+- A real Docker import-error repair passed with original JSON fixtures intact,
+  without needing a known passing historical parent.
+- Synthetic demo checks exercise boundary, suspected/control reversal and repair
+  outcomes using real Git histories and trusted test fixtures.
+- Isolation checks compare source and Git metadata hashes/timestamps, including
+  dirty tracked files, untracked work and ignored environment files.
+- Runner checks cover missing dependencies, build failures, empty/skipped suites,
+  protected test/config edits, unavailable historical evidence and preparation
+  that changes committed source. These outcomes cannot manufacture verification.
+- Full original upstream suites were measured at pinned revisions: humanize 856
+  passed; PySnooper 28 passed; Cookiecutter 294 passed / 1 skipped; Commons CSV 53
+  passed / 2 skipped. No regression was reproduced by those original suites.
 
-- Added committed-manifest detection and explicit pytest, Node, Vitest, Jest,
-  Maven/Surefire and Go runner selections, including prepared dependency images.
-- Verified actual offline Docker passing/failing fixtures for Node, Go,
-  TypeScript/Vitest, Jest and Java/Maven. Node and Go zero-test runs cannot pass.
-- Verified a complete Node Git boundary, suspected reversal, unrelated reversal
-  and repair experiment with a mocked model. Original HEAD/source stayed unchanged.
-- Adapter fixtures cover skips, absent testcases, build failures without evidence,
-  protected tests/manifests, committed detection and runner context cleanup.
-- Non-Python repair verification uses the full committed worktree and the same
-  selected test runner; model repairs cannot edit recognized test files/config.
-- This does not certify arbitrary projects. Dependencies/native libraries must be
-  prepared in the selected image, actual tests must exist, and the documented
-  source-context/resource limits still apply. See MULTILANGUAGE.md.
+All automated model replies in these checks are mocked. Provider integration is
+wired to runtime NVIDIA Nemotron inference on Nebius Token Factory, but the new
+release-agent experiment has not been rerun with live inference. Complete a live
+judge rehearsal using your own configured account before claiming that result.
 
-## Original blockers found
+## Cleanup audit
 
-- Git investigation and Build Doctor were separate workflows. Git results did not feed repair proposals.
-- Original Git demos demonstrated arithmetic regressions only.
-- Reports used a single global latest file, so concurrent readers could pick up a different run.
-- Missing NEBIUS_API_KEY raised during module import, preventing inspection/testing of the original CLI.
-- Import/collection failures were classified as infrastructure errors in the original Git engine.
-- Temporary repair directories had private permissions that could block the non-root Docker user.
-- The original README lacked install, run, model and judge instructions.
-- The original EvidenceGraph effect triggered a frontend lint error.
+The root audit removed the unused pasted-log frontend/API, starter artwork,
+duplicate reference samples and Git bundle, obsolete public replay source and
+generation scripts, and superseded Git/source-selection helpers. Pinned upstream
+metadata and cached legacy report lookup remain. Active release, diagnosis,
+upstream, runner, isolation and workflow tests are retained. The useful public
+runner-selection API check was moved into the upstream suite.
 
-## Changes made
+Verification now always tests a full committed worktree and writes only changed
+implementation files after its untouched baseline. The retired supplied-files-only
+verification path was removed. Runtime pytest was moved to development dependencies;
+container images continue to provide the test runners.
 
-- Connected reproduction, history search, reversal controls, model diagnosis, source repair and before/after tests.
-- Added real generated Git histories for configuration, import and API-handler regressions.
-- Added readiness checks, run-specific report IDs, downloads and historical test outcomes.
-- Preserved Git evidence when the model is unavailable and labeled the run partial.
-- Required actual pytest collection/outcome evidence and unchanged collected tests for repair success.
-- Kept Docker-only execution in production, with no host-runner fallback.
-- Kept pasted evidence as an advanced workspace beneath the main investigation.
-- Removed the unused LegacyApp.tsx, git_analyzer.py and report_generator.py after their responsibilities moved to the connected pipeline.
-- Excluded dependency directories, personal Git metadata, caches and stale generated reports from the delivery ZIP. Included the checked frontend production build so the release can run from one backend process.
+Saved reports, upstream checkouts, replay caches, dependencies and `.env` were
+preserved. FileSync was neither accessed nor modified. No environment secrets
+were printed or committed. README and submission instructions now describe the
+active product instead of retired features.
 
-## Verified in the review environment
+## Repeat checks
 
-- Backend suite: seven test methods passed, including the complete workflow on all six demos and a full API investigation/report/graph/timeline run.
-- Real Git and pytest: every demo had a passing parent, a failing regression, a verified suspected reversal, an unsupported unrelated reversal and a passing repaired implementation.
-- Original repository HEAD/source stayed unchanged; temporary Git worktrees were cleaned up.
-- Missing model preserves experimental evidence; invalid paths and protected-file patches are rejected.
-- Docker errors, no-test runs and skipped-only runs cannot produce verified outcomes.
-- API validation, missing report handling, run identity and cross-repository report rejection passed.
-- Frontend TypeScript/Vite production build and ESLint passed.
-- Production HTML and its bundled JavaScript/CSS assets were served successfully by the backend.
+See README.md for the standard backend suite and frontend build/lint commands.
+Docker integration suites opt in with environment flags documented in the
+relevant test modules, MULTILANGUAGE.md and PUBLIC_DEMOS.md. Check actual model
+access, credits, runner images and demonstration links separately.
 
-The automated model reply is mocked. Trusted demo tests execute on the host only
-through a test-specific injected runner. The application itself always uses Docker.
-
-## Still needs a live check before calling this submission-ready
-
-1. Windows Docker Desktop: build the image and run configuration and import investigations in the app.
-2. Nebius: use your configured key to produce and test actual model patches for those runs.
-3. Browser: confirm readable results, source/diff display, timeline, graph and report download.
-4. Submission access: choose a judge-accessible test build or demo route and verify it from a clean setup.
-5. Finish the public repository, actual Nebius feedback and public YouTube demonstration.
-
-No Docker engine, API key or browser binary was available for live execution in
-this review environment. Successful local integration checks do not replace those checks.
-
-Do not record a simulated model result as the final demo. Record a fresh live run.
-
-## Four public-project regression replays — October 18, 2026
-
-- Added separate humanize significant-figure, PySnooper Unicode, Cookiecutter
-  UTF-8 context and Apache Commons CSV carriage-return regression tests.
-- Vendored pinned upstream extracts/class, licenses, Apache NOTICE and provenance.
-  Histories and authored tests are explicitly labeled as reconstructed replays.
-- Real offline Docker checks verified each historical bug fails and the fixed
-  source passes with unchanged tests. All four also confirmed a historical
-  boundary, a verified suspected reversal and an unsupported unrelated reversal.
-- Backend suite: 32 passed, 6 optional suites skipped, 33 subtests passed with
-  public-demo Docker checks enabled. An additional API runner-selection test
-  passed afterward (5 fast checks passed; 8 Docker checks skipped in that rerun).
-- Frontend production build and lint passed; existing bundle-size warning remains.
-- No live Nebius inference was used for these checks. Full diagnosis/repair remains
-  a separate live experiment, independently verified by the existing app workflow.
-- Work stayed within CausalTrace. FileSync and environment secrets were untouched.
-
-## Full upstream investigations — October 18, 2026
-
-- Replaced the four public selector entries with full original Git checkouts at
-  pinned historical revisions. Timeline IDs and author dates now come from
-  upstream Git objects, with investigation start time shown separately.
-- Preserved old replay reports and their histories. Synthetic fixtures now label
-  generated commits instead of presenting fixed timestamps as historical dates.
-- Original test suites ran offline: humanize 856 passed; PySnooper 28 passed;
-  Cookiecutter 294 passed / 1 skipped; Commons CSV 53 passed / 2 skipped.
-  None reproduced the known replay defect, so no regression or repair is claimed.
-- Added historical dependency images, generated humanize build assets only in
-  disposable copies, and LF worktrees for Linux tests from Windows checkouts.
-- Mixed passing/skipped suites are reported with incomplete coverage; they cannot
-  verify repairs. Existing upstream edits are rejected and preserved.
-- Backend validation: 35 passed, 14 optional checks skipped, 33 subtests passed,
-  with the four full upstream Docker suites enabled. Frontend build/lint passed.
-- FileSync and environment secrets were untouched.
-
-## General AI diagnosis — October 18, 2026
-
-- Added AI diagnosis/review mode independent of historical boundary discovery.
-  Full-mode setup failures and inconclusive histories can receive suggestions too.
-- Model sharing now requires explicit per-run opt-in, disabled by default, and
-  UI consent resets when selecting a different repository/path. Consent is checked
-  before selecting/exporting evidence or invoking the model.
-- Added bounded source/config context, source-selection disclosure, test ideas,
-  optional improvements and self-reported confidence. Passing baselines never
-  establish reproduced bugs; setup advice stays separate from verified repairs.
-- All source-patch verification now uses the full committed project worktree,
-  preserving fixtures and tests for Python as well as other supported languages.
-- Validation uses mocked model replies. A real Docker import-failure experiment
-  verifies the repair with unchanged tests and original JSON fixtures, with no
-  passing historical parent and no modifications to the source repository.
-- No live project contents were sent to Nebius during this implementation.
-- Final checks: 39 backend tests passed, 19 optional checks skipped, 33 subtests
-  passed. The opt-in Docker diagnosis suite separately passed all 9 checks,
-  including actual import repair verification. Frontend build and lint passed.
-
-## Release regression coding-agent workflow — October 18, 2026
-
-- Added good/bad tag or commit selection, first-parent per-failure bisection,
-  cached whole-suite executions and separate candidate reversal evidence.
-- Added a bounded Nemotron propose/test/inspect-remaining-failures loop. Accepted
-  partial fixes must reduce failures and preserve tests/passing outcomes; the
-  final full suite must pass before the cumulative repair is marked verified.
-- All private repair checkpoint commits and tests run in independent snapshots.
-  Original sources, refs, environment files and Git metadata remain unchanged.
-- Added report-scoped cumulative patch downloads, raw Git diff export for Windows
-  line endings, and git apply --check validation against the original bad release.
-- Added limits and explicit outcomes for missing evidence, changed tests,
-  collection failures, provider errors, failed good releases and exhausted budgets.
-- Real Docker validation located two different regression commits, supported both
-  with reversal tests, and verified two successive repairs against unchanged
-  tests. Model replies were mocked; no project data was sent to Nebius.
-- Final validation: 47 backend tests and 33 subtests passed; 20 optional checks
-  skipped. The opt-in final real Docker release-agent experiment passed separately.
-  Frontend production build and lint passed; the existing bundle-size warning remains.
+Cleanup validation: 43 backend tests and 33 subtests passed; 12 optional checks
+skipped. The final release-agent Docker experiment passed separately. Frontend
+production build and lint passed, and the retained CLI help was checked.

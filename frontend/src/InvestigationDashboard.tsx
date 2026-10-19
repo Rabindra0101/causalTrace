@@ -215,7 +215,7 @@ export default function InvestigationDashboard() {
     </div></section>
 
     <section className="panel setup-panel" id="readiness"><div className="setup-heading"><div><p className="section-kicker">BEFORE YOU BEGIN</p><h2>Workspace readiness</h2></div>
-      <button className="doctor-secondary" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : '↻ Check again'}</button></div>
+      <button className="setup-refresh" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : '↻ Check again'}</button></div>
       {health ? <><div className="readiness-grid">
         <div className={`readiness-item ${health.git_available ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">⌘</span><div><strong>Git history</strong><span>{health.git_available ? 'Ready to trace' : 'Git is missing'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>
         <div className={`readiness-item ${health.docker.ready ? 'is-ready' : 'needs-setup'}`}><span className="readiness-icon" aria-hidden="true">◇</span><div><strong>Docker runner</strong><span>{health.docker.ready ? 'Ready to experiment' : 'Setup needed'}</span></div><span className="readiness-dot" aria-hidden="true" /></div>

@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from causaltrace.build_api import router as build_router
 from causaltrace.demo_setup import DEMO_IDS, demo_catalog, ensure_demo
 from causaltrace.public_demos import PUBLIC_IDS, ensure_public_demo
 from causaltrace import upstream_projects
@@ -27,7 +26,6 @@ REPORTS_ROOT = PROJECT_ROOT / "reports"
 investigation_lock = threading.Lock()
 log = logging.getLogger("causaltrace")
 app = FastAPI(title="CausalTrace API", version="0.4.0")
-app.include_router(build_router)
 
 
 class InvestigationRequest(BaseModel):

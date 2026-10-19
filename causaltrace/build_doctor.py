@@ -257,7 +257,7 @@ def investigate(request: BuildRequest):
     return result
 
 
-def verify(report_id: str, repository=None, directory="."):
+def verify(report_id: str, repository, directory="."):
     with _records_lock:
         record = _records.get(report_id)
 
@@ -283,21 +283,12 @@ def verify(report_id: str, repository=None, directory="."):
             root = Path(folder)
             root.chmod(0o755)
 
-            if repository is not None:
-                worktree = root / "repo"
-                subprocess.run(["git", "-c", "core.autocrlf=false", "worktree", "add", "--detach", str(worktree), "HEAD"],
-                               cwd=repository, check=True, capture_output=True, timeout=30)
-                cleanup.callback(subprocess.run, ["git", "worktree", "remove", "--force", str(worktree)],
-                                 cwd=repository, check=True, capture_output=True, timeout=30)
-                root = worktree / directory
-
-            for file in record["request"].files:
-                path = root / file.path
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(
-                    file.content,
-                    encoding="utf-8",
-                )
+            worktree = root / "repo"
+            subprocess.run(["git", "-c", "core.autocrlf=false", "worktree", "add", "--detach", str(worktree), "HEAD"],
+                           cwd=repository, check=True, capture_output=True, timeout=30)
+            cleanup.callback(subprocess.run, ["git", "worktree", "remove", "--force", str(worktree)],
+                             cwd=repository, check=True, capture_output=True, timeout=30)
+            root = worktree / directory
 
             before = run_pytest(root)
 
@@ -315,7 +306,10 @@ def verify(report_id: str, repository=None, directory="."):
                 record["result"]["verification"] = result
                 return result
 
+            originals = {file.path: file.content for file in record["request"].files}
             for path, content in record["patched"].items():
+                if content == originals[path]:
+                    continue
                 (root / path).write_text(
                     content,
                     encoding="utf-8",

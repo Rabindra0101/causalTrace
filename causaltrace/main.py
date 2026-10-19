@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--install-dependencies", action="store_true", help="Allow dependency downloads in a preparation container")
     parser.add_argument("--build-frontend", action="store_true", help="Build frontend assets before offline tests")
     parser.add_argument("--frontend-directory", default="frontend", help="Relative frontend directory, or . for project root")
+    parser.add_argument("--share-with-nebius", action="store_true", help="Send selected committed source/log evidence to Nebius for this run")
     args = parser.parse_args()
     repo = args.repo.resolve() if args.repo else ensure_demo(args.repository)
     directory = args.test_dir if args.repo else "."
@@ -32,7 +33,7 @@ def main():
         repo, args.test_dir if args.repo else ".",
         "local" if args.repo else args.repository,
         Path(__file__).resolve().parent.parent / "reports",
-        test_runner=runner, runner_image=args.runner_image,
+        test_runner=runner, runner_image=args.runner_image, share_with_nebius=args.share_with_nebius,
         install_dependencies=args.install_dependencies, build_frontend=args.build_frontend,
         frontend_directory=args.frontend_directory,
     )

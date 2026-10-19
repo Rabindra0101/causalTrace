@@ -54,10 +54,10 @@ Old downloaded replay reports retain their reconstructed timelines; re-run an
 investigation to obtain original upstream history. The six tiny bundled fixtures
 remain synthetic demos and now label generated commits without misleading dates.
 
-The prior focused public replays remain under `public_demos/` for regression
-checks and compatibility with old reports. Their licenses, NOTICE, extraction
-metadata and regeneration scripts remain available; they are no longer the four
-public repository selections in the dashboard.
+Obsolete extracted replay code and its regeneration scripts have been removed.
+Saved report JSON files are preserved. An old replay timeline can still use its
+existing cache under `.causaltrace/demos/public-*`; absent replay caches are not
+regenerated. Run a new upstream investigation for authentic original history.
 
 To repeat the complete original-suite Docker integration checks:
 

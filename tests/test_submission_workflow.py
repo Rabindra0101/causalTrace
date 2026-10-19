@@ -155,7 +155,6 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(client.get("/api/investigation?report_id=../../bad").status_code, 400)
             self.assertEqual(client.get("/api/investigation?report_id=" + "f" * 32).status_code, 404)
             self.assertEqual(client.post("/api/run-investigation", json={"repository_id": "unknown"}).status_code, 400)
-            self.assertEqual(client.post("/api/build/analyze", json={"log": "x", "files": []}).status_code, 422)
             with patch("causaltrace.api.docker_status", return_value={"ready": False, "reason": "Docker missing"}):
                 self.assertEqual(client.post("/api/run-investigation", json={"repository_id": "config"}).status_code, 503)
             for index, repo in [("a" * 32, "config"), ("b" * 32, "imports")]:

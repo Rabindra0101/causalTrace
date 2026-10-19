@@ -98,7 +98,3 @@ def ensure_demo(repository_id: str) -> Path:
             git(repo, "commit", "-qm", "Document the demo (unrelated change)")
             repo.rename(target)
     return target
-
-
-def ensure_inventory_demo():
-    return ensure_demo("inventory")

@@ -41,7 +41,7 @@
 .preparation-options p { font-size: 1rem; line-height: 1.7; color: #5d496f; }
 .preparation-options > label { display: flex; align-items: center; min-height: 48px; gap: 12px; }
 .preparation-options input[type=checkbox] { flex-shrink: 0; width: 24px; height: 24px; margin: 0; }
-.setup-panel .doctor-secondary { font-size: 1rem; min-height: 48px; color: #365a41; border-color: #708678; }
+.setup-panel .setup-refresh { font-size: 1rem; min-height: 48px; color: #365a41; border-color: #708678; }
 .readiness-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
 .readiness-item strong { font-size: 1.125rem; }
 .readiness-item div > span { font-size: 1rem; color: #435d48; }
@@ -58,20 +58,16 @@
 .status-execution_error, .outcome-not_supported { color: #804518; }
 .status-partial, .status-inconclusive, .outcome-inconclusive { color: #644382; }
 .report-download { font-size: 1.125rem; padding-block: 10px; }
-.run-receipt summary, details > summary, .advanced-workspace > summary { font-size: 1.125rem; line-height: 1.65; padding-block: 8px; color: #365a41; }
+.run-receipt summary, details > summary { font-size: 1.125rem; line-height: 1.65; padding-block: 8px; color: #365a41; }
 .run-output, .evidence-output, .evidence-hash { font-size: 1rem; line-height: 1.75; tab-size: 2; }
 .investigation-progress, p.error[role=alert] { font-size: 1.125rem; line-height: 1.75; }
 .error { color: #a83229; }
 .workspace-footer { font-size: 1rem; color: #49624e; flex-wrap: wrap; }
-.advanced-workspace .doctor :is(p, label, button, input, select, textarea, summary, code, pre, .doctor-kicker) { font-size: 1rem; line-height: 1.65; }
-.advanced-workspace .doctor :is(button, select, input:not([type=checkbox])) { min-height: 48px; }
 .dashboard .react-flow__edge-text { font-size: 16px; }
 .dashboard .react-flow__node { font-size: 1rem; }
 .dashboard .react-flow__controls-button { width: 48px; height: 48px; }
 .evidence-inspector :is(p, h3, h4) { color: #e2e8f0; }
 .evidence-inspector :is(small, .subtitle) { color: #b9cbd2; font-size: 1rem; }
-.advanced-workspace .doctor :is(p, label, summary, legend) { color: #dce7f4; }
-.advanced-workspace .doctor :is(h1, h2, h3, h4) { color: #edf5fa; }
 @media (max-width: 1100px) { .trace-art { display: none; } }
 @media (max-width: 650px) {
   .header-actions, .workflow-strip { grid-template-columns: 1fr; }

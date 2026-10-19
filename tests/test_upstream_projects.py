@@ -105,3 +105,20 @@ def test_container_worktree_uses_lf_without_rewriting_original(original_history)
         # Worktree is removed by test_commit; the source repository stays clean.
         assert runner.call_count == 1
     assert git(original, 'status', '--porcelain') == ''
+
+
+def test_public_java_api_selects_maven_and_prepared_image(monkeypatch):
+    from fastapi.testclient import TestClient
+    from causaltrace import api
+    captured = {}
+    def investigate(*args, **kwargs):
+        captured.update(kwargs)
+        return {'status': 'completed'}
+    monkeypatch.setattr(api, 'ensure_demo', lambda name: Path(__file__).parent)
+    monkeypatch.setattr(api, 'docker_status', lambda *args: {'ready': True})
+    monkeypatch.setattr(api, 'run_investigation', investigate)
+    response = TestClient(api.app).post('/api/run-investigation', json={'repository_id': 'commons_csv', 'test_runner': 'pytest'})
+    assert response.status_code == 200
+    assert captured['test_runner'] == 'maven'
+    from causaltrace.upstream_projects import profile
+    assert captured['runner_image'] == profile('commons_csv')['image']
