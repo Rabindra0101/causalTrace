@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import EvidenceGraph from './EvidenceGraph'
 import RegressionTimeline from './RegressionTimeline'
-import BuildDoctor from './BuildDoctor'
+
 import './InvestigationDashboard.css'
 
 type TestRun = { status: string; return_code: number; output: string; preparation?: TestRun }
@@ -257,7 +257,7 @@ export default function InvestigationDashboard() {
       </section></>}
       {report.evidence_graph && <section className="panel"><h2>Evidence graph</h2><EvidenceGraph nodes={report.evidence_graph.nodes} edges={report.evidence_graph.edges} /></section>}
     </>}
-    <details className="advanced-workspace"><summary>Advanced: investigate pasted logs and Python files</summary><BuildDoctor /></details>
+
     <footer className="workspace-footer"><span>CausalTrace <span aria-hidden="true">✧</span> Built around evidence.</span><span>Reproduce. Investigate. Verify.</span></footer>
   </main>
 }
