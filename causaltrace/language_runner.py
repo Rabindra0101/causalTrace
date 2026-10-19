@@ -11,7 +11,7 @@ RUNNERS = ("auto", "pytest", "node", "vitest", "jest", "maven", "go")
 MULTILANG_IMAGE = "causaltrace-multilang-runner:local"
 
 
-def committed_runner(repo, directory, requested):
+def committed_runner(repo, directory, requested, revision="HEAD"):
     if requested not in RUNNERS:
         raise ValueError("Unknown test runner.")
     if requested != "auto":
@@ -19,7 +19,7 @@ def committed_runner(repo, directory, requested):
     prefix = Path(directory).as_posix().strip("/")
     prefix = "" if prefix == "." else prefix + "/"
     def content(name):
-        result = subprocess.run(["git", "show", "HEAD:" + prefix + name], cwd=repo,
+        result = subprocess.run(["git", "show", revision + ":" + prefix + name], cwd=repo,
                                 capture_output=True, text=True, encoding="utf-8", timeout=15)
         return result.stdout if result.returncode == 0 else None
     if content("go.mod") is not None:

@@ -273,3 +273,62 @@ Executable adapters currently cover Python/pytest, JavaScript/TypeScript
 language, framework, external service, GUI or hardware environment. Use a prepared
 runner image for additional dependencies. Missing tests or unavailable services
 remain explicit limits in the evidence.
+
+## Release regression repair agent
+
+Select **Compare releases and repair regressions**, choose the last working tag
+or commit and the broken tag or commit, then set a repair attempt budget (1–5).
+Enable **Share selected evidence with Nebius for this run** to let Nemotron
+propose source repairs. Without consent, release testing, bisection and reversal
+experiments still run, but no model request is made.
+
+CausalTrace executes a bounded coding-agent cycle:
+
+1. Resolve both release references and create an independent snapshot at the
+   selected broken release, even when it is not your current HEAD.
+2. Require the working release's complete selected test suite to pass and a valid
+   failure at the broken release. Setup errors, missing tests and skips are not
+   treated as evidence of a verified working release.
+3. Group failures by test identity (or a collection-error path), then bisect each
+   between the releases. Full-suite executions are cached across groups.
+4. Reverse up to three distinct candidate commits in temporary worktrees and
+   check whether each target failure disappears without losing passing tests.
+5. Let Nemotron inspect bounded source, release diffs and failure output, propose
+   implementation edits, and run the complete unchanged suite before and after.
+6. Keep a partial repair only when it reduces failures, preserves test identities
+   and existing passing outcomes, introduces no new failures/skips, and the
+   baseline reproduces consistently. Feed remaining failures into the next model
+   request. Stop when the suite passes, the attempt limit is reached, or a model
+   proposal cannot be applied/tested.
+
+Accepted changes are checkpointed **only inside the disposable snapshot**.
+Download the cumulative Git patch from the report. It is exported byte-for-byte
+from Git and checked for clean application in integration tests, including
+Windows line endings. Review it against the selected broken release before
+applying. Partial patches are labeled partial and may leave unresolved failures.
+No original source, branch, `.env`, Git metadata or remote branch is changed by
+an investigation; this workflow does not auto-deploy or auto-publish a repair PR.
+
+Search currently follows the first-parent history over at most 2,048 commits,
+with up to 32 cached historical suite executions and 20 failure groups. Bisection
+assumes a single passing-to-failing transition for each test; it confirms a tested
+adjacent boundary, not the absence of all earlier transient failures. Missing or
+skipped historical tests stop that group's search. Changed tests between releases
+prevent a claim of implementation causality. Multiple failing tests can share
+one underlying bug. A passing final suite verifies tested behavior, not a claim
+that the application has zero bugs. Reproduction tests/logs and a compatible
+runner are still required for failures unique to production.
+
+The agent uses the supported Python, JavaScript/TypeScript, Java and Go runners
+and the existing explicit Nebius sharing controls and source/context limits.
+Additional dependencies need a prepared runner. It does not execute arbitrary
+shell instructions returned by the model or modify tests/configuration to make a
+patch pass. Suggested dependency changes remain instructions for review.
+
+To repeat the real Docker experiment (two regressions introduced in different
+commits, repaired in two successive attempts), with mocked Nemotron responses:
+
+```powershell
+$env:CAUSALTRACE_RELEASE_DOCKER_TESTS = '1'
+.\.venv\Scripts\python.exe -m pytest tests/test_release_investigation.py -q
+```

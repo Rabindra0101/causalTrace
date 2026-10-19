@@ -131,8 +131,12 @@ def persist(report, reports_root):
 
 def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full",
                       test_runner="auto", runner_image=None, install_dependencies=False,
-                      build_frontend=False, frontend_directory="frontend", share_with_nebius=False):
-    selected_runner = committed_runner(repo, directory, test_runner)
+                      build_frontend=False, frontend_directory="frontend", share_with_nebius=False, good_ref=None, bad_ref="HEAD", max_repair_attempts=3):
+    release_selection = None
+    if investigation_type == "release":
+        from causaltrace.release_investigation import resolve_releases
+        release_selection = resolve_releases(repo, good_ref, bad_ref)
+    selected_runner = committed_runner(repo, directory, test_runner, revision=release_selection[1] if release_selection else "HEAD")
     consent_token = MODEL_CONSENT.set(share_with_nebius)
     runner_token = RUNNER.set(selected_runner)
     image_token = IMAGE.set(runner_image)
@@ -140,6 +144,20 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                                         "build_frontend": build_frontend, "frontend_directory": frontend_directory}
                                        if install_dependencies or build_frontend else None)
     try:
+        if investigation_type == "release":
+            from causaltrace.release_investigation import resolve_releases, run_release
+            if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
+                raise ValueError("Reports must be outside the investigated repository.")
+            if not 1 <= max_repair_attempts <= 5:
+                raise ValueError("Choose between 1 and 5 repair attempts.")
+            good, bad, revisions = release_selection
+            with independent_snapshot(repo, revision=bad) as snapshot:
+                selected_directory = (snapshot / directory).resolve()
+                if not selected_directory.is_relative_to(snapshot.resolve()) or not selected_directory.is_dir():
+                    raise ValueError("Test directory must exist inside the selected broken release.")
+                normalized_directory = selected_directory.relative_to(snapshot.resolve()).as_posix()
+                return run_release(snapshot, normalized_directory, repository_id, reports_root, good_ref, bad_ref,
+                    good, bad, revisions, max_repair_attempts, MODEL_CONSENT.get())
         if repository_id == "local":
             if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
                 raise ValueError("Reports must be saved outside the investigated repository.")

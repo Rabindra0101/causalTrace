@@ -10,6 +10,7 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from causaltrace.build_api import router as build_router
@@ -33,9 +34,12 @@ class InvestigationRequest(BaseModel):
     repository_id: str = "config"
     repository_path: str | None = None
     test_directory: str = "."
-    investigation_type: Literal["full", "diagnose", "regression", "reproduce"] = "full"
+    investigation_type: Literal["full", "diagnose", "release", "regression", "reproduce"] = "full"
     test_runner: Literal["auto", "pytest", "node", "vitest", "jest", "maven", "go"] = "auto"
     runner_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$")
+    good_ref: str | None = Field(default=None, min_length=1, max_length=200)
+    bad_ref: str = Field(default="HEAD", min_length=1, max_length=200)
+    max_repair_attempts: int = Field(default=3, ge=1, le=5)
     share_with_nebius: bool = False
     install_dependencies: bool = False
     build_frontend: bool = False
@@ -64,6 +68,15 @@ def report_file(report_id=None):
 @app.get("/api/investigation")
 def get_investigation(report_id: str | None = None):
     return report_file(report_id)
+
+
+@app.get("/api/investigation/{report_id}/repair.patch")
+def repair_patch(report_id: str):
+    report = report_file(report_id)
+    path = REPORTS_ROOT / (report_id + ".patch")
+    if not report.get("repair_patch_url") or not path.is_file():
+        raise HTTPException(404, "No accepted repair patch exists for this report.")
+    return FileResponse(path, media_type="text/x-diff", filename="causaltrace-repair-"+report_id[:8]+".patch")
 
 
 @app.get("/api/graph")
@@ -101,7 +114,11 @@ def run(request: InvestigationRequest):
         repository = repository if repository is not None else ensure_demo(request.repository_id)
         runner = upstream_projects.profile(request.repository_id)["runner"] if request.repository_id in PUBLIC_IDS else request.test_runner
         image = request.runner_image or (upstream_projects.profile(request.repository_id)["image"] if request.repository_id in PUBLIC_IDS else None)
-        selected_runner = committed_runner(repository, directory, runner)
+        selected_revision = "HEAD"
+        if request.investigation_type == "release":
+            from causaltrace.release_investigation import resolve_releases
+            _, selected_revision, _ = resolve_releases(repository, request.good_ref, request.bad_ref)
+        selected_runner = committed_runner(repository, directory, runner, revision=selected_revision)
         if request.install_dependencies or request.build_frontend:
             if selected_runner == "pytest":
                 raise HTTPException(400, "Automatic project preparation currently supports non-Python runners. Use a prepared image for Python.")
@@ -115,6 +132,7 @@ def run(request: InvestigationRequest):
                                    investigation_type=request.investigation_type,
                                    test_runner=selected_runner, runner_image=image,
                                    share_with_nebius=request.share_with_nebius,
+                                   good_ref=request.good_ref, bad_ref=request.bad_ref, max_repair_attempts=request.max_repair_attempts,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
         return {"status": report["status"], "report": report}

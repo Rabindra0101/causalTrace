@@ -147,3 +147,23 @@ Do not record a simulated model result as the final demo. Record a fresh live ru
 - Final checks: 39 backend tests passed, 19 optional checks skipped, 33 subtests
   passed. The opt-in Docker diagnosis suite separately passed all 9 checks,
   including actual import repair verification. Frontend build and lint passed.
+
+## Release regression coding-agent workflow — October 18, 2026
+
+- Added good/bad tag or commit selection, first-parent per-failure bisection,
+  cached whole-suite executions and separate candidate reversal evidence.
+- Added a bounded Nemotron propose/test/inspect-remaining-failures loop. Accepted
+  partial fixes must reduce failures and preserve tests/passing outcomes; the
+  final full suite must pass before the cumulative repair is marked verified.
+- All private repair checkpoint commits and tests run in independent snapshots.
+  Original sources, refs, environment files and Git metadata remain unchanged.
+- Added report-scoped cumulative patch downloads, raw Git diff export for Windows
+  line endings, and git apply --check validation against the original bad release.
+- Added limits and explicit outcomes for missing evidence, changed tests,
+  collection failures, provider errors, failed good releases and exhausted budgets.
+- Real Docker validation located two different regression commits, supported both
+  with reversal tests, and verified two successive repairs against unchanged
+  tests. Model replies were mocked; no project data was sent to Nebius.
+- Final validation: 47 backend tests and 33 subtests passed; 20 optional checks
+  skipped. The opt-in final real Docker release-agent experiment passed separately.
+  Frontend production build and lint passed; the existing bundle-size warning remains.

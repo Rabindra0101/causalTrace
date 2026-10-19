@@ -23,6 +23,12 @@ type Report = {
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
   ai_analysis: { status: string; model?: string; hypothesis?: string; reason?: string }
   repair?: Repair | null
+  release_range?: { good_ref: string; bad_ref: string; good_commit: string; bad_commit: string; commits_in_range: number; assumption: string }
+  working_baseline?: TestRun
+  failure_groups?: { test_id: string; confirmed: boolean; reason: string; suspected_commit?: string; commit_date?: string; commit_message?: string; resolved_after_repair?: boolean; reversal?: { outcome: string; reason: string } }[]
+  repair_session?: { status: string; reason: string; final_tests: TestRun; attempts: { number: number; accepted: boolean; reason: string; proposal?: Repair; verification?: { status: string; before?: TestRun; after?: TestRun } }[] }
+  unsearched_failures?: number
+  repair_patch_url?: string
   source_context?: { selected_files: string[]; omitted_files: string[]; scope: string }
   source_evidence?: { path: string; content: string }[]
   provenance?: { name: string; source: string; upstream_fixed?: string; upstream_revision?: string; history_type?: string; note: string }
@@ -68,6 +74,9 @@ export default function InvestigationDashboard() {
   const [repositoryPath, setRepositoryPath] = useState('')
   const [testDirectory, setTestDirectory] = useState('.')
   const [investigationType, setInvestigationType] = useState('full')
+  const [goodRef, setGoodRef] = useState('')
+  const [badRef, setBadRef] = useState('HEAD')
+  const [maxRepairAttempts, setMaxRepairAttempts] = useState(3)
   const [shareWithNebius, setShareWithNebius] = useState(false)
   const [testRunner, setTestRunner] = useState('auto')
   const [runnerImage, setRunnerImage] = useState('')
@@ -106,6 +115,7 @@ export default function InvestigationDashboard() {
         body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
           test_directory: testDirectory, investigation_type: investigationType,
           share_with_nebius: shareWithNebius,
+          good_ref: goodRef.trim() || null, bad_ref: badRef.trim() || 'HEAD', max_repair_attempts: maxRepairAttempts,
           test_runner: repository === 'local' ? testRunner : 'pytest',
           runner_image: repository === 'local' ? runnerImage.trim() || null : null,
           install_dependencies: repository === 'local' && installDependencies,
@@ -181,19 +191,26 @@ export default function InvestigationDashboard() {
       <label className="repository-selector"><span>Investigation type</span>
         <select value={investigationType} disabled={running}
           onChange={e => { setInvestigationType(e.target.value); setReport(null) }}>
+          <option value="release">Compare releases and repair regressions</option>
           <option value="full">Full investigation and repair</option>
           <option value="diagnose">AI diagnosis and development suggestions</option>
           <option value="regression">Git regression and reversal</option>
           <option value="reproduce">Reproduce failure only</option>
         </select>
       </label>
-      {(investigationType === 'full' || investigationType === 'diagnose') && <fieldset className="preparation-options" disabled={running}>
+      {investigationType === 'release' && <>
+        <label className="repository-selector"><span>Last working release (tag or commit)</span><input value={goodRef} disabled={running} placeholder="v1.0.0 or commit ID" onChange={e => setGoodRef(e.target.value)} /></label>
+        <label className="repository-selector"><span>Broken release (tag or commit)</span><input value={badRef} disabled={running} placeholder="HEAD" onChange={e => setBadRef(e.target.value)} /></label>
+        <label className="repository-selector"><span>Maximum AI repair attempts</span><select value={maxRepairAttempts} disabled={running} onChange={e => setMaxRepairAttempts(Number(e.target.value))}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+        <p>Tests both releases, bisects failing tests and tries cumulative repairs in an independent snapshot. Download accepted changes as a patch for review. Each repair runs the complete unchanged test suite.</p>
+      </>}
+      {(investigationType === 'full' || investigationType === 'diagnose' || investigationType === 'release') && <fieldset className="preparation-options" disabled={running}>
         <legend>AI analysis with Nebius / Nemotron</legend>
         <label><input type="checkbox" checked={shareWithNebius} onChange={e => setShareWithNebius(e.target.checked)} /> Share selected evidence with Nebius for this run</label>
         <p>Sends up to 12 committed source/config files (100,000 characters total), test logs and the candidate diff to Nebius Token Factory. Check your committed source for sensitive information before sharing. Environment files are excluded.</p>
         <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
       </fieldset>}
-      <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
+      <button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
         onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}<span aria-hidden="true">↗</span></button>
     </div></section>
 
@@ -212,6 +229,7 @@ export default function InvestigationDashboard() {
 
     {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
       ? 'Testing committed HEAD in Docker.'
+      : investigationType === 'release' ? 'Testing both releases, bisecting failures, challenging candidate causes and testing bounded repair attempts.'
       : investigationType === 'diagnose' ? 'Running baseline checks and preparing evidence-based AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
       : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} This may take several minutes.</p>}
@@ -236,7 +254,10 @@ export default function InvestigationDashboard() {
       <section className="panel"><h2>1. Baseline tests</h2>
         <Output title="Project preparation output" run={report.baseline.preparation} />
         <Output title="Baseline test output" run={report.baseline} /></section>
-      {report.regression && <section className="panel"><h2>2. Regression boundary</h2>
+      {report.release_range && <section className="panel"><h2>Release comparison</h2><p>Working: <code>{report.release_range.good_ref}</code> ? broken: <code>{report.release_range.bad_ref}</code> ({report.release_range.commits_in_range} commits).</p><p>{report.release_range.assumption}</p><Output title="Working release tests" run={report.working_baseline} />{report.candidate_diff && <details><summary>Diff between selected releases</summary><pre className="run-output">{report.candidate_diff}</pre></details>}</section>}
+      {report.failure_groups && <section className="panel"><h2>Failing tests and regression boundaries</h2><p>Multiple tests can share one underlying bug. Each boundary is assessed separately.</p>{Boolean(report.unsearched_failures) && <p>{report.unsearched_failures} additional failures were not bisected because the grouping limit was reached.</p>}{report.failure_groups.map(group => <article key={group.test_id}><h3><code>{group.test_id}</code></h3><p>{group.reason}</p>{group.suspected_commit && <p>Candidate: <code>{group.suspected_commit}</code> ? {group.commit_message}{group.commit_date && <> ? {new Date(group.commit_date).toLocaleString()}</>}</p>}<p>Reversal: {group.reversal?.outcome.replaceAll('_', ' ')}. {group.reversal?.reason}</p><p>{group.resolved_after_repair ? 'Passing after repair' : 'Unresolved'}</p></article>)}</section>}
+      {report.repair_session && <section className="panel"><h2>Iterative repair experiments <span className="run-badge">{report.repair_session.status.replaceAll('_', ' ')}</span></h2><p>{report.repair_session.reason}</p>{report.repair_session.attempts.map(attempt => <article key={attempt.number}><h3>Attempt {attempt.number}: {attempt.accepted ? 'accepted in isolated snapshot' : 'not accepted'}</h3><p>{attempt.reason}</p>{attempt.proposal && <><p>{attempt.proposal.diagnosis.summary}</p><ul>{attempt.proposal.diagnosis.recommended_steps.map((step,i) => <li key={i}>{step}</li>)}</ul><details><summary>Proposed patch</summary><pre className="run-output">{attempt.proposal.patch}</pre></details></>}<Output title="Candidate tests" run={attempt.verification?.after} /></article>)}<Output title="Final complete test suite" run={report.repair_session.final_tests} />{report.repair_patch_url && <a className="report-download" href={report.repair_patch_url} download>Download cumulative repair patch</a>}<p>Original repository unchanged. Review the patch before applying it. Passing tests cover tested behavior, not every possible bug.</p></section>}
+      {report.regression && !report.release_range && <section className="panel"><h2>2. Regression boundary</h2>
         <p>Boundary: {report.regression.confirmed ? 'confirmed by historical tests' : 'inconclusive'}</p>
         {report.regression.suspected_commit && <p>Breaking commit: <code>{report.regression.suspected_commit}</code></p>}
         {report.regression.parent_revision && <p>Passing parent: <code>{report.regression.parent_revision}</code></p>}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 @contextmanager
-def independent_snapshot(source):
+def independent_snapshot(source, revision=None):
     source = Path(source).resolve()
     def git(*args, cwd=source):
         return subprocess.run(["git", "-c", "core.fsmonitor=false", *args], cwd=cwd,
@@ -14,7 +14,7 @@ def independent_snapshot(source):
                               errors="replace", check=True, timeout=120).stdout.strip()
     if Path(git("rev-parse", "--show-toplevel")).resolve() != source:
         raise ValueError("The configured path must be a Git repository root.")
-    revision = git("rev-parse", "HEAD")
+    revision = revision or git("rev-parse", "HEAD")
     with tempfile.TemporaryDirectory(prefix="causaltrace-snapshot-") as folder:
         root = Path(folder)
         bundle = root / "history.bundle"
