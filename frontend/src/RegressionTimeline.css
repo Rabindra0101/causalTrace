@@ -132,3 +132,7 @@
 .timeline-detail h3 {
   margin-top: 0;
 }
+
+.timeline-item[data-status="pass"] .timeline-node { border-color: #26714c; }
+.timeline-item:is([data-status="fail"], [data-status="collection_error"]) .timeline-node { border-color: #a83229; }
+.timeline-item:is([data-status="error"], [data-status="pass_with_skips"]) .timeline-node { border-color: #8c5c18; }

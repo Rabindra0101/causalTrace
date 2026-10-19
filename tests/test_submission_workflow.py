@@ -55,7 +55,7 @@ def model_response(messages, **kwargs):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_selected_modes_skip_unrequested_model_and_history_work(self):
+    def test_non_ai_modes_show_tested_history_and_skip_model_work(self):
         for mode in ("reproduce", "regression"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as folder, \
                  patch.object(verifier, "run_pytest", side_effect=trusted_fixture_runner), \
@@ -66,7 +66,8 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(report["investigation_type"], mode)
                 model.assert_not_called()
                 if mode == "reproduce":
-                    self.assertNotIn("regression", report)
+                    self.assertTrue(report["regression"]["confirmed"])
+                    self.assertEqual(len(report["tested_history"]["commits"]), 3)
                     self.assertEqual(report["experiments"], {})
                 else:
                     self.assertEqual(report["experiments"]["commit_reversal"]["outcome"], "verified")

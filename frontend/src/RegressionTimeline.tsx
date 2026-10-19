@@ -8,11 +8,16 @@ type TimelineCommit = {
   message: string
   date: string
   test_status: string
+  result?: { status: string; return_code: number; output: string }
 }
 
 type TimelineResponse = {
   repository_id: string
   history_type?: string
+  latest_pass?: string | null
+  latest_fail?: string | null
+  complete?: boolean
+  reason?: string
   commits: TimelineCommit[]
 }
 
@@ -31,6 +36,7 @@ export default function RegressionTimeline({
 }: Props) {
   const [commits, setCommits] = useState<TimelineCommit[]>([])
   const [historyType, setHistoryType] = useState('synthetic')
+  const [summary, setSummary] = useState<TimelineResponse | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,6 +49,7 @@ export default function RegressionTimeline({
       setError(null)
       setCommits([])
       setSelected(null)
+      setSummary(null)
 
       try {
         const response = await fetch(
@@ -57,6 +64,7 @@ export default function RegressionTimeline({
         const data: TimelineResponse = await response.json()
 
         if (!controller.signal.aborted) {
+          setSummary(data)
           setCommits(data.commits)
           setHistoryType(data.history_type ?? 'synthetic')
         }
@@ -85,13 +93,15 @@ export default function RegressionTimeline({
         <div>
           <h2>Git Regression Timeline</h2>
           <p className="subtitle">
-            {historyType === 'upstream' ? 'Original upstream commits and author dates, displayed in your local time zone.' : 'Synthetic demo history; these commits were created for the demonstration.'}
+            {historyType !== 'synthetic' ? 'Original Git commits and author dates, displayed in your local time zone.' : 'Synthetic demo history; these commits were created for the demonstration.'}
             Untested commits are not classified as passing or failing.
           </p>
         </div>
         <span className="timeline-count">{commits.length} commits</span>
       </div>
 
+      {summary?.reason && <p role="status">{summary.reason}</p>}
+      {summary && ('latest_pass' in summary || 'latest_fail' in summary) && <p><strong>Most recent passing commit:</strong> <code>{summary.latest_pass?.slice(0, 8) ?? 'Not found in tested history'}</code><br /><strong>Most recent failing commit:</strong> <code>{summary.latest_fail?.slice(0, 8) ?? 'Not found in tested history'}</code></p>}
       {loading && <p role="status">Loading Git history...</p>}
       {error && <p role="alert" className="error">{error}</p>}
 
@@ -114,6 +124,7 @@ export default function RegressionTimeline({
                 <button
                   key={commit.hash}
                   type="button"
+                  data-status={commit.test_status}
                   className={`timeline-item ${
                     suspected ? 'timeline-suspected' : ''
                   } ${selected === commit.hash ? 'timeline-selected' : ''}`}
@@ -124,6 +135,8 @@ export default function RegressionTimeline({
                   <span className="timeline-item-content">
                     <span className="timeline-item-top">
                       <code>{commit.short_hash}</code>
+                      {commit.hash === summary?.latest_pass && <span className="timeline-badge">LATEST PASS</span>}
+                      {commit.hash === summary?.latest_fail && <span className="timeline-badge">LATEST FAIL</span>}
                       {suspected && (
                         <span className="timeline-badge">
                           {verified ? 'VERIFIED REGRESSION' : 'SUSPECTED'}
@@ -134,7 +147,7 @@ export default function RegressionTimeline({
                       )}
                     </span>
                     <span className="timeline-message">{commit.message}</span>
-                    {historyType === 'upstream' ? <time dateTime={commit.date}>
+                    {historyType !== 'synthetic' ? <time dateTime={commit.date}>
                       Author date: {new Date(commit.date).toLocaleString()}
                     </time> : <span>Generated demo commit</span>}
                   </span>
@@ -151,6 +164,7 @@ export default function RegressionTimeline({
               <p>
                 <strong>Historical test status:</strong> {selectedCommit.test_status.replaceAll('_', ' ')}
               </p>
+              {selectedCommit.result && <details open><summary>Test output ? exit {selectedCommit.result.return_code}</summary><pre className="run-output">{selectedCommit.result.output}</pre></details>}
               {suspectedCommit &&
                 (selectedCommit.hash === suspectedCommit ||
                   selectedCommit.hash.startsWith(suspectedCommit) ||

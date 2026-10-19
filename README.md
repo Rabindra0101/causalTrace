@@ -77,8 +77,8 @@ Choose the investigation type:
 | Compare releases and repair regressions | Test good/bad releases, bisect failures, reverse candidates and iterate on source repairs. |
 | Full investigation and repair | Reproduce HEAD, search recent history, run reversals and request a tested repair. |
 | AI diagnosis and development suggestions | Explain baseline errors or suggest optional improvements without requiring a historical boundary. |
-| Git regression and reversal | Collect history/reversal evidence without model requests. |
-| Reproduce failure only | Run the selected committed baseline without model requests. |
+| Git regression and reversal | Test the same history, then run reversal experiments when an implementation regression is confirmed. |
+| Reproduce failure only | Test HEAD and every first-parent commit through the newest passing/failing transition, without reversals or AI. |
 
 Model-assisted modes require explicit sharing opt-in. It starts disabled and
 resets when changing repositories/paths. The selected source/config files, logs
@@ -121,7 +121,15 @@ candidate reversals. It assumes one passing-to-failing transition per test and
 confirms an adjacent boundary, not the absence of earlier transient failures.
 Missing/skipped historical evidence stops that search; changed tests prevent a
 claim of implementation causality. Multiple failing tests may share one bug.
-Ordinary HEAD history search is limited to 16 first-parent revisions.
+Full-investigation HEAD search is limited to 16 first-parent revisions. The two
+non-AI history modes instead test consecutively through the newest passing/failing
+transition, with a selectable limit of 16?2,048 commits (default 64). Every tested
+commit is saved with its original date, message, status and output. The timeline
+marks the most recent pass and fail and supports local repositories from persisted
+report evidence, without reopening the source. Search limits or unavailable test
+evidence are shown explicitly; unknown outcomes never become passing results.
+If HEAD already passes, the previous failing commit is shown as a recovery
+transition rather than a current regression.
 
 Production-only bugs still need reproducible tests/logs and compatible service,
 data and runtime setup. Passing tests establish correctness only for the tested

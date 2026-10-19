@@ -38,6 +38,7 @@ class InvestigationRequest(BaseModel):
     good_ref: str | None = Field(default=None, min_length=1, max_length=200)
     bad_ref: str = Field(default="HEAD", min_length=1, max_length=200)
     max_repair_attempts: int = Field(default=3, ge=1, le=5)
+    history_limit: int = Field(default=64, ge=2, le=2048)
     share_with_nebius: bool = False
     install_dependencies: bool = False
     build_frontend: bool = False
@@ -129,7 +130,7 @@ def run(request: InvestigationRequest):
         report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
                                    investigation_type=request.investigation_type,
                                    test_runner=selected_runner, runner_image=image,
-                                   share_with_nebius=request.share_with_nebius,
+                                   share_with_nebius=request.share_with_nebius, history_limit=request.history_limit,
                                    good_ref=request.good_ref, bad_ref=request.bad_ref, max_repair_attempts=request.max_repair_attempts,
                                    install_dependencies=request.install_dependencies,
                                    build_frontend=request.build_frontend, frontend_directory=request.frontend_directory)
@@ -147,11 +148,15 @@ def run(request: InvestigationRequest):
 
 @app.get("/api/repositories/{repository_id}/timeline")
 def timeline(repository_id: str, report_id: str | None = None):
-    if repository_id not in (*DEMO_IDS, *PUBLIC_IDS):
+    if repository_id not in (*DEMO_IDS, *PUBLIC_IDS, "local"):
         raise HTTPException(404, "Repository is not configured.")
     report = report_file(report_id) if report_id else None
     if report and report["repository_id"] != repository_id:
         raise HTTPException(400, "Report belongs to a different repository.")
+    if report and report.get("tested_history"):
+        return {"repository_id":repository_id, **report["tested_history"]}
+    if repository_id == "local":
+        raise HTTPException(404, "This report has no saved tested history. Run a new history investigation.")
     tested = {row["commit"]: row["status"] for row in (report or {}).get("regression", {}).get("history", [])}
     try:
         legacy_replay = report and repository_id in PUBLIC_IDS and report.get("provenance", {}).get("history_type") != "upstream"

@@ -23,6 +23,7 @@ type Report = {
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
   ai_analysis: { status: string; model?: string; hypothesis?: string; reason?: string }
   repair?: Repair | null
+  tested_history?: { commits: { hash: string }[] }
   release_range?: { good_ref: string; bad_ref: string; good_commit: string; bad_commit: string; commits_in_range: number; assumption: string }
   working_baseline?: TestRun
   failure_groups?: { test_id: string; confirmed: boolean; reason: string; suspected_commit?: string; commit_date?: string; commit_message?: string; resolved_after_repair?: boolean; reversal?: { outcome: string; reason: string } }[]
@@ -74,6 +75,7 @@ export default function InvestigationDashboard() {
   const [repositoryPath, setRepositoryPath] = useState('')
   const [testDirectory, setTestDirectory] = useState('.')
   const [investigationType, setInvestigationType] = useState('full')
+  const [historyLimit, setHistoryLimit] = useState(64)
   const [goodRef, setGoodRef] = useState('')
   const [badRef, setBadRef] = useState('HEAD')
   const [maxRepairAttempts, setMaxRepairAttempts] = useState(3)
@@ -114,7 +116,7 @@ export default function InvestigationDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
           test_directory: testDirectory, investigation_type: investigationType,
-          share_with_nebius: shareWithNebius,
+          share_with_nebius: shareWithNebius, history_limit: historyLimit,
           good_ref: goodRef.trim() || null, bad_ref: badRef.trim() || 'HEAD', max_repair_attempts: maxRepairAttempts,
           test_runner: repository === 'local' ? testRunner : 'pytest',
           runner_image: repository === 'local' ? runnerImage.trim() || null : null,
@@ -198,6 +200,7 @@ export default function InvestigationDashboard() {
           <option value="reproduce">Reproduce failure only</option>
         </select>
       </label>
+      {(investigationType === 'regression' || investigationType === 'reproduce') && <label className="repository-selector"><span>Maximum historical commits to test</span><select value={historyLimit} disabled={running} onChange={e => setHistoryLimit(Number(e.target.value))}>{[16,32,64,128,256,512,1024,2048].map(n => <option key={n} value={n}>{n}</option>)}</select><span>Tests each commit from HEAD through the most recent passing/failing transition. Shows all tested results; stops on unavailable evidence or this limit.</span></label>}
       {investigationType === 'release' && <>
         <label className="repository-selector"><span>Last working release (tag or commit)</span><input value={goodRef} disabled={running} placeholder="v1.0.0 or commit ID" onChange={e => setGoodRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Broken release (tag or commit)</span><input value={badRef} disabled={running} placeholder="HEAD" onChange={e => setBadRef(e.target.value)} /></label>
@@ -228,7 +231,7 @@ export default function InvestigationDashboard() {
     </section>
 
     {running && <p role="status" className="investigation-progress">{investigationType === 'reproduce'
-      ? 'Testing committed HEAD in Docker.'
+      ? 'Testing HEAD and each historical commit through the most recent passing/failing transition.'
       : investigationType === 'release' ? 'Testing both releases, bisecting failures, challenging candidate causes and testing bounded repair attempts.'
       : investigationType === 'diagnose' ? 'Running baseline checks and preparing evidence-based AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
@@ -265,7 +268,7 @@ export default function InvestigationDashboard() {
       </section>}
       {report.generated_at && <p>Investigation started: <time dateTime={report.generated_at}>{new Date(report.generated_at).toLocaleString()}</time></p>}
       {report.provenance && <section className="result-card"><h2>Public source provenance</h2><p>{report.provenance.note}</p><a href={report.provenance.source}>Pinned upstream source</a><p>Upstream revision: <code>{report.provenance.upstream_revision ?? report.provenance.upstream_fixed}</code></p></section>}
-      {report.repository_id !== 'local' && <RegressionTimeline key={report.id} repositoryId={report.repository_id} reportId={report.id}
+      {(report.repository_id !== 'local' || report.tested_history) && <RegressionTimeline key={report.id} repositoryId={report.repository_id} reportId={report.id}
         suspectedCommit={report.regression?.suspected_commit}
         verified={report.experiments.commit_reversal?.outcome === 'verified'} />}
       {report.experiments.commit_reversal && <section className="panel"><h2>3. Reversal experiments</h2>

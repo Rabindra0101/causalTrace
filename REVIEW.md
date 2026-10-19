@@ -63,3 +63,17 @@ access, credits, runner images and demonstration links separately.
 Cleanup validation: 43 backend tests and 33 subtests passed; 12 optional checks
 skipped. The final release-agent Docker experiment passed separately. Frontend
 production build and lint passed, and the retained CLI help was checked.
+
+## Tested history in both non-AI modes
+
+Git regression/reversal and reproduce-only now test each first-parent commit from
+HEAD through the newest passing/failing transition. Their configurable limit is
+64 by default (up to 2,048); unavailable evidence and limits stop explicitly.
+Reports persist every tested commit's original metadata, status and output, mark
+the latest pass/fail, and serve local timelines without reopening source paths.
+Passing HEAD can show a historical recovery without inventing a current regression.
+
+Validation: 47 backend tests and 33 subtests passed; 14 optional checks skipped.
+Both non-AI modes separately passed real Docker history checks with no model
+requests. A 21-commit fixture covers the old truncation limit, saved local history,
+search limits and unavailable evidence. Frontend build and lint passed.
