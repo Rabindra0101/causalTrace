@@ -228,18 +228,18 @@ export default function InvestigationDashboard() {
         ['regression', 'Check Git causes', 'Test history and reverse candidates without AI.'],
         ['reproduce', 'Explore test history', 'Run tests and find recent passing and failing commits.'],
       ].map(([value,title,description]) => <label key={value} className={`mode-card ${investigationType===value ? 'is-selected' : ''}`}><input type="radio" name="investigation-type" value={value} checked={investigationType===value} onChange={() => {setInvestigationType(value);setReport(null);setError('')}} /><span><strong>{title}</strong><span>{description}</span></span></label>)}</div></fieldset>
-      {(['full','regression','reproduce'].includes(investigationType)) && <label className="repository-selector"><span>Maximum historical commits to test</span><select value={historyLimit} disabled={running} onChange={e => setHistoryLimit(Number(e.target.value))}>{[16,32,64,128,256,512,1024,2048].map(n => <option key={n} value={n}>{n}</option>)}</select><span>Tests each commit from HEAD through the most recent passing/failing transition. Shows all tested results; keeps skipped/error runs visible and continues until a pass/fail observation or this limit.</span></label>}
+      <label className="repository-selector"><span>Maximum historical commits to test</span><select value={historyLimit} disabled={running} onChange={e => setHistoryLimit(Number(e.target.value))}>{[16,32,64,128,256,512,1024,2048].map(n => <option key={n} value={n}>{n}</option>)}</select><span>Starts at the selected revision and stops at the most recent passing/failing transition. Keeps skipped/error results visible and continues past them, up to this limit. The same search applies to every investigation type.</span></label>
       {investigationType === 'release' && <>
         <label className="repository-selector"><span>Last working release (tag or commit)</span><input value={goodRef} disabled={running} placeholder="v1.0.0 or commit ID" onChange={e => setGoodRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Broken release (tag or commit)</span><input value={badRef} disabled={running} placeholder="HEAD" onChange={e => setBadRef(e.target.value)} /></label>
         <label className="repository-selector"><span>Maximum AI repair attempts</span><select value={maxRepairAttempts} disabled={running} onChange={e => setMaxRepairAttempts(Number(e.target.value))}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-        <p>Tests every commit reachable from the broken release, including merge parents, with no commit-count cap. Keeps failures, skips and runner errors visible. Then analyzes the selected release range and tries repairs in an independent snapshot. Large histories can take a long time.</p>
+        <p>Searches backward from the broken release to the most recent passing/failing transition. Also checks your working release separately, then analyzes the tested interval and tries repairs in an independent snapshot.</p>
       </>}
       {(investigationType === 'full' || investigationType === 'diagnose' || investigationType === 'release') && <fieldset className="preparation-options" disabled={running}>
         <legend>AI analysis with Nebius / Nemotron</legend>
         <label><input type="checkbox" checked={shareWithNebius} onChange={e => setShareWithNebius(e.target.checked)} /> Share selected evidence with Nebius for this run</label>
         <p>Sends up to 12 committed source/config files (100,000 characters total), test logs and the candidate diff to Nebius Token Factory. This is a source-context limit, not a commit limit. Check your committed source for sensitive information before sharing. Environment files are excluded.</p>
-        {investigationType === 'diagnose' && <p>Tests every commit reachable from the selected revision, including merge parents, before AI diagnosis. There is no commit-count cap; large histories can take a long time. Every test outcome remains visible.</p>}
+        {investigationType === 'diagnose' && <p>Uses the same recent passing/failing history search before AI diagnosis. Every attempted result remains visible; it does not scan the entire repository history.</p>}
         <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
       </fieldset>}
       <div className="investigation-actions"><button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
@@ -265,8 +265,8 @@ export default function InvestigationDashboard() {
 
     {running && <p role="status" className="investigation-progress" aria-live="polite">{investigationType === 'reproduce'
       ? 'Testing HEAD and each historical commit through the most recent passing/failing transition.'
-      : investigationType === 'release' ? 'Testing all commits reachable from the broken release, analyzing failures and testing bounded repair attempts.'
-      : investigationType === 'diagnose' ? 'Testing all commits reachable from the selected revision before preparing AI suggestions.'
+      : investigationType === 'release' ? 'Searching the most recent passing/failing transition, checking release endpoints and testing bounded repair attempts.'
+      : investigationType === 'diagnose' ? 'Searching the most recent passing/failing transition before preparing AI suggestions.'
       : investigationType === 'regression' ? 'Reproducing the failure, testing Git history and running reversal experiments.'
       : 'Reproducing the failure, testing Git history, running reversal experiments and requesting a tested Nemotron repair.'} Elapsed: {elapsed}s. Each result comes from actual tests; longer histories may take several minutes.</p>}
     {error && <p role="alert" className="error">{error}</p>}

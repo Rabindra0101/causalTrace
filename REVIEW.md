@@ -78,9 +78,10 @@ Both non-AI modes separately passed real Docker history checks with no model
 requests. A 21-commit fixture covers the old truncation limit, saved local history,
 search limits and unavailable evidence. Frontend build and lint passed.
 
-Repair a broken update and Explain an error now execute every commit reachable
-from the selected broken revision or HEAD respectively, including merge parents,
-without a commit-count cap or stopping at the first transition. Repair boundary
-analysis still uses the chosen first-parent release range. Every historical
-failure, skip and runner error is persisted, even when the selected HEAD passes.
+All five modes now share the same first-parent search from the selected revision
+through the most recent passing/failing transition, bounded by the history limit.
+Repair mode additionally tests the selected working endpoint and restricts its
+per-test analysis to the recent tested interval. No mode scans the full history
+after finding the transition. All attempted failures, skips and runner errors
+remain visible, even when the selected HEAD passes.
 The 12-file source-context cap is separate from historical test execution.

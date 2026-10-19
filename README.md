@@ -122,19 +122,20 @@ auto-deploy, create a PR, or execute arbitrary shell instructions from the model
 Dependency/configuration changes remain recommendations; source patches cannot
 change tests/configuration or weaken assertions.
 
-Repair a broken update tests every commit reachable from the broken revision,
-including merge parents and commits before the selected working release. Explain
-an error tests every commit reachable from HEAD before requesting AI suggestions.
-Neither mode has a commit-count cap. Large histories can take a long time.
-Unrelated branch tips that are not ancestors of the selected revision are excluded.
+Every investigation uses the same first-parent search: start at the selected
+revision (HEAD by default, or the broken release) and test backward through the
+most recent passing/failing transition. It stops there, at the repository root,
+or at the selected history limit. Skips and errors remain visible while the
+search continues. Repair mode additionally checks the chosen working release
+as a separate endpoint; it does not resume a full-repository scan.
 The 12-file AI source-context limit is separate from history execution.
-Release boundary analysis follows the selected first-parent release range, using
+Release boundary analysis uses the recent tested interval, using
 the cached suite results, up to 20 failure groups and three distinct candidate
 reversals in the standard profile. It assumes one passing-to-failing transition per test and
 confirms an adjacent boundary, not the absence of earlier transient failures.
 Missing/skipped historical evidence remains visible; changed tests prevent a
 claim of implementation causality. Multiple failing tests may share one bug.
-Full investigation and the two non-AI history modes test consecutively through the newest passing/failing
+All modes test consecutively through the newest passing/failing
 transition, with a selectable limit of 16?2,048 commits (default 64). Every tested
 commit is saved with its original date, message, status and output. The timeline
 marks the most recent pass and fail and supports local repositories from persisted

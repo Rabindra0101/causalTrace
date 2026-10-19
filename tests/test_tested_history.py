@@ -1,4 +1,4 @@
-﻿"""Persist all actually tested history, including local snapshots and long ranges."""
+"""Persist all actually tested history, including local snapshots and long ranges."""
 from pathlib import Path
 from unittest.mock import patch
 import pytest
@@ -31,11 +31,11 @@ def runner(repo,revision,directory):
             'failed_ids':['test_contract'] if status=='fail' else [],'collection_errors':[],'skipped_ids':[]}
 
 
-@pytest.mark.parametrize('mode', ['diagnose', 'release'])
-def test_ai_modes_test_entire_history_even_past_transition_and_requested_limit(project,tmp_path,mode):
+@pytest.mark.parametrize('mode', ['full','diagnose','release','regression','reproduce'])
+def test_every_mode_stops_at_most_recent_transition(project,tmp_path,mode):
     from causaltrace import release_investigation as release
     repo,passing = project
-    # A recovered HEAD must not hide the twenty older failing revisions.
+    # Stop at the newest failure; do not retest the nineteen still older failures.
     (repo/'state.txt').write_text('pass')
     git(repo,'add','.')
     git(repo,'commit','-qm','Recovery')
@@ -45,38 +45,13 @@ def test_ai_modes_test_entire_history_even_past_transition_and_requested_limit(p
         report = pipeline.run_investigation(repo,'.','local',tmp_path/'reports',mode,
             test_runner='pytest',history_limit=2,good_ref=passing)
     rows = report['tested_history']['commits']
-    assert len(rows) == 22
-    assert sum(row['test_status']=='fail' for row in rows) == 20
-    assert rows[0]['test_status'] == rows[-1]['test_status'] == 'pass'
+    assert len(rows) == (3 if mode=='release' else 2)
+    assert sum(row['test_status']=='fail' for row in rows) == 1
+    assert [row['test_status'] for row in rows[:2]] == ['pass','fail']
     assert report['tested_history']['complete']
-    assert (diagnosis_runs if mode=='diagnose' else release_runs).call_count == 22
+    assert diagnosis_runs.call_count + release_runs.call_count == (3 if mode=='release' else 2)
     assert git(repo,'rev-parse','HEAD') == before
     assert git(repo,'status','--porcelain') == ''
-
-
-def test_complete_history_keeps_merge_parent_errors_and_skips(project):
-    repo,passing = project
-    main = git(repo,'rev-parse','HEAD')
-    git(repo,'checkout','-b','side',passing)
-    (repo/'side.txt').write_text('branch change')
-    git(repo,'add','.')
-    git(repo,'commit','-qm','Side branch')
-    side = git(repo,'rev-parse','HEAD')
-    git(repo,'checkout','--detach',main)
-    git(repo,'merge','--no-ff','side','-m','Merge side')
-    def outcomes(repo,revision,directory):
-        result = runner(repo,revision,directory)
-        if revision == side:
-            result.update(status='error',passed=False,execution_error=True,output='Missing historical dependency')
-        elif revision == passing:
-            result.update(status='pass_with_skips',passed=False,skipped_ids=['test_optional'])
-        return result
-    with patch.object(pipeline,'test_commit',side_effect=outcomes) as runs:
-        history = pipeline.test_complete_history(repo,'.')
-    assert runs.call_count == 23
-    assert history['complete']
-    assert any(row['commit']==side and row['status']=='error' for row in history['history'])
-    assert any(row['status']=='pass_with_skips' for row in history['history'])
 
 
 def test_reproduce_saves_every_commit_through_success_and_serves_local_history(project,tmp_path):
@@ -100,6 +75,23 @@ def test_reproduce_saves_every_commit_through_success_and_serves_local_history(p
         assert response.json()['commits']==history['commits']
         assert response.json()['history_type']=='local'
     assert git(repo,'status','--porcelain')==''
+
+
+def test_skipped_head_does_not_stop_before_actual_failing_and_passing_results(project):
+    repo,passing = project
+    head = git(repo,'rev-parse','HEAD')
+    def outcomes(repo,revision,directory):
+        result = runner(repo,revision,directory)
+        if revision == head:
+            result.update(status='pass_with_skips',passed=False,skipped_ids=['test_contract'])
+        return result
+    with patch.object(pipeline,'test_commit',side_effect=outcomes):
+        history = pipeline.locate_boundary(repo,'.',limit=64)
+    assert len(history['history'])==21
+    assert history['latest_pass']==passing
+    assert history['latest_fail']
+    assert history['confirmed'] is False
+    assert history['stop_reason']=='transition_with_gaps'
 
 
 def test_passing_head_shows_previous_failure_and_no_false_regression(project,tmp_path):

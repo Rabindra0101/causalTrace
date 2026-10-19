@@ -222,17 +222,16 @@ def run_release(repo, directory, repository_id, reports_root, good_ref, bad_ref,
         from causaltrace.upstream_projects import provenance
         report['provenance'] = {**provenance(repository_id), 'upstream_revision':bad, 'note':'Original upstream history and tests at the selected broken release. Repair experiments use independent copies.'}
     cache = {good:test_commit(repo, good, directory), bad:test_commit(repo, bad, directory)}
-    history_revisions = git(repo, 'rev-list', '--topo-order', bad).splitlines()
-    for commit in history_revisions:
-        if commit not in cache:
-            cache[commit] = test_commit(repo, commit, directory)
-    report['release_range']['search_budget'] = len(cache)
-    report['release_range']['assumption'] = 'Every commit reachable from the broken release is tested, including merge parents. Per-test boundary analysis uses the selected first-parent release range.'
+    from causaltrace.pipeline import locate_boundary, HISTORY_LIMIT
+    history = locate_boundary(repo, directory, limit=HISTORY_LIMIT.get(), baseline=cache[bad], cache=cache)
+    report['regression'] = history
+    history_revisions = [row['commit'] for row in history['history']]
+    if good not in history_revisions:
+        history_revisions.append(good)  # Keep the separately requested endpoint check.
+    report['release_range']['search_budget'] = HISTORY_LIMIT.get()
+    report['release_range']['assumption'] = 'Search starts at the broken release and stops at the newest passing/failing transition or configured limit. The selected working endpoint is checked separately.'
     def save():
         boundary = report.setdefault('regression', {'confirmed':False})
-        boundary['reason'] = 'All commits reachable from the selected broken release were tested. All passing, failing, skipped and error results are shown.'
-        boundary['stop_reason'] = 'repository_root'
-        boundary['complete'] = True
         rows=[]
         for commit in history_revisions:
             if commit not in cache:
@@ -250,13 +249,17 @@ def run_release(repo, directory, repository_id, reports_root, good_ref, bad_ref,
         report['status'] = 'no_failure' if cache[bad].get('passed') else 'execution_error'
         report['reason'] = 'The selected broken release did not reproduce a valid test failure. Provide a failing regression test or fix runner setup.'
         return save()
-    groups, changed_tests, omitted = regression_search(repo, directory, revisions, cache)
+    if history['confirmed']:
+        scoped_revisions = list(reversed([row['commit'] for row in history['history']]))
+        groups, changed_tests, omitted = regression_search(repo, directory, scoped_revisions, cache)
+    else:
+        groups, changed_tests = [], []
+        omitted = len(cache[bad].get('failed_ids', [])) + len(cache[bad].get('collection_errors', []))
     reversal_checks(repo, directory, groups)
     report['failure_groups'] = groups
     report['unsearched_failures'] = omitted
     report['test_changes_detected'] = changed_tests
-    report['regression'] = {'confirmed': bool(groups) and all(g['confirmed'] for g in groups) and not omitted,
-        'history':[{'commit':c, 'status':r['status'], 'result':r} for c,r in cache.items()]}
+    report['regression']['confirmed'] = bool(groups) and all(g['confirmed'] for g in groups) and not omitted
     if cache[bad].get('collection_errors'):
         report['reason'] = 'Collection failed before individual tests could be grouped. Repair suggestions can still address the import/collection failure.'
     diff = git(repo, 'diff', good, bad, '--', directory)

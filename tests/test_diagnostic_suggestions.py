@@ -68,7 +68,8 @@ def test_passing_project_can_get_optional_review_without_a_verified_bug(project,
         report = pipeline.run_investigation(project, '.', 'local', tmp_path/'reports', investigation_type='diagnose', test_runner='pytest', share_with_nebius=True)
     assert report['status'] == 'completed'
     assert report['regression']['confirmed'] is False
-    assert report['tested_history']['complete']
+    assert not report['tested_history']['complete']  # No pass/fail transition exists.
+    assert report['tested_history']['stop_reason'] == 'repository_root'
     assert len(report['tested_history']['commits']) == 1
     assert 'pass' in report['baseline']['status']
     verify.assert_not_called()

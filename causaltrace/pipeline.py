@@ -23,11 +23,12 @@ def git(repo, *args):
     return run_command(["git", *args], repo).stdout.strip()
 
 
-def locate_boundary(repo, directory, limit=16, baseline=None):
+def locate_boundary(repo, directory, limit=16, baseline=None, cache=None):
     """Test every first-parent commit through the newest passing/failing transition."""
     log = git(repo, "log", "--first-parent", "--max-count="+str(limit),
               "--format=%H%x1f%h%x1f%s%x1f%aI", "HEAD")
     commits = [line.split("\x1f", 3) for line in log.splitlines() if len(line.split("\x1f", 3)) == 4]
+    cache = {} if cache is None else cache
     rows, latest_pass, latest_fail = [], None, None
     latest_partial, latest_error, initial = None, None, None
     previous_observed = None
@@ -37,14 +38,17 @@ def locate_boundary(repo, directory, limit=16, baseline=None):
                 "latest_pass_with_skips":latest_partial, "latest_error":latest_error,
                 "limit":limit, "complete":False, **extra}
     for index, (commit, short, message, date) in enumerate(commits):
-        run = baseline if index == 0 and baseline is not None else test_commit(repo, commit, directory)
+        run = baseline if index == 0 and baseline is not None else cache.get(commit)
+        if run is None:
+            run = test_commit(repo, commit, directory)
+        cache[commit] = run
         state = classify_test_result(run)
         partial = run.get("status") == "pass_with_skips"
         rows.append({"commit":commit, "short_hash":short, "message":message, "date":date,
                      "status":run.get("status", state), "result":run})
         if partial:
             latest_partial = latest_partial or commit
-            state = "pass"
+            continue  # A skipped suite cannot supply either side of the transition.
         elif state == "error":
             latest_error = latest_error or commit
             continue  # Keep the error visible; do not hide older failures.
@@ -72,24 +76,6 @@ def locate_boundary(repo, directory, limit=16, baseline=None):
     exhausted = len(commits) < limit or (commits and not git(repo, "rev-list", "--parents", "-n", "1", commits[-1][0]).split()[1:])
     return result(False, "All attempted results, including skips and errors, are shown. No passing/failing transition was found before " + ("the repository root." if exhausted else f"the {limit}-commit search limit."),
         stop_reason="repository_root" if exhausted else "search_limit")
-
-
-def test_complete_history(repo, directory, baseline=None):
-    """Execute every commit reachable from the selected HEAD, including merge parents."""
-    rows = []
-    latest_pass = latest_fail = None
-    for line in git(repo, 'log', '--topo-order', '--format=%H%x1f%h%x1f%s%x1f%aI', 'HEAD').splitlines():
-        commit, short, message, date = line.split('\x1f', 3)
-        run = baseline if not rows and baseline is not None else test_commit(repo, commit, directory)
-        rows.append({'commit':commit, 'short_hash':short, 'message':message, 'date':date,
-                     'status':run['status'], 'result':run})
-        if run.get('passed'):
-            latest_pass = latest_pass or commit
-        if is_failure(run):
-            latest_fail = latest_fail or commit
-    return {'confirmed':False, 'history':rows, 'latest_pass':latest_pass, 'latest_fail':latest_fail,
-            'complete':True, 'stop_reason':'repository_root', 'limit':len(rows),
-            'reason':'Every commit reachable from the selected revision was tested, including merge parents. All failures, skips and runner errors remain visible. Timeline ordering alone does not prove causality.'}
 
 
 def hypothesis_text(diagnosis):
@@ -283,7 +269,7 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
-    if investigation_type in {"full", "reproduce", "regression"}:
+    if investigation_type in {"full", "diagnose", "reproduce", "regression"}:
         history = locate_boundary(repo, directory, limit=HISTORY_LIMIT.get(), baseline=baseline)
         report["regression"] = history
         if investigation_type == "reproduce" or (investigation_type == "regression" and not history["confirmed"]):
@@ -293,8 +279,7 @@ def _run_investigation(repo, directory, repository_id, reports_root, investigati
             report["reason"] = history["reason"]
             return persist(report, reports_root)
     if investigation_type == "diagnose":
-        report['regression'] = test_complete_history(repo, directory, baseline)
-        report["reason"] = "All reachable commits were tested. AI suggestions explain the selected revision; historical results alone do not prove causality."
+        report["reason"] = "History was tested through the newest passing/failing transition or search limit. AI suggestions explain the selected revision; historical results alone do not prove causality."
         add_ai_suggestions(report, repo, directory)
         report["status"] = "completed" if report["ai_analysis"]["status"] == "completed" else "partial"
         return persist(report, reports_root)
