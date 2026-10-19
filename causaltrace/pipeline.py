@@ -13,6 +13,7 @@ from causaltrace.language_runner import RUNNER, IMAGE, PREPARATION, committed_ru
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
 from causaltrace.repository_snapshot import independent_snapshot
 from causaltrace.analysis_policy import ACTIVE_PROFILE, MODEL_USAGE, PROFILES, settings, usage_summary
+from causaltrace.investigation_control import ACTIVE_CONTROL, InvestigationStopped, checkpoint
 
 
 MODEL_CONSENT = ContextVar("share_with_nebius", default=False)
@@ -199,6 +200,7 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
                                         "build_frontend": build_frontend, "frontend_directory": frontend_directory}
                                        if install_dependencies or build_frontend else None)
     try:
+        checkpoint()
         if investigation_type == "release":
             from causaltrace.release_investigation import resolve_releases, run_release
             if Path(reports_root).resolve().is_relative_to(Path(repo).resolve()):
@@ -219,6 +221,24 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
             with independent_snapshot(repo) as snapshot:
                 return _run_investigation(snapshot, directory, repository_id, reports_root, investigation_type)
         return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
+    except InvestigationStopped:
+        control = ACTIVE_CONTROL.get()
+        by_commit = {row['commit']:row for row in control.results}
+        selected = release_selection[1] if release_selection else git(repo, 'rev-parse', 'HEAD')
+        rows = [by_commit[commit] for commit in git(repo,'rev-list','--topo-order',selected).splitlines() if commit in by_commit]
+        report = {'id':uuid.uuid4().hex, 'project':'CausalTrace', 'repository_id':repository_id,
+                  'generated_at':datetime.now(timezone.utc).isoformat(), 'status':'stopped',
+                  'reason':'Stopped by you after the active operation finished. Completed commit results are preserved; remaining history and repairs were not completed.',
+                  'investigation_type':investigation_type, 'test_runner':selected_runner,
+                  'baseline_revision':selected,
+                  'baseline':by_commit[selected]['result'] if selected in by_commit else {'status':'not_run','return_code':None,'output':'Stopped before baseline tests completed.'},
+                  'experiments':{}, 'repair':None, 'ai_analysis':{'status':'not_run','reason':'Run stopped; no completed AI diagnosis is claimed.'},
+                  'regression':{'confirmed':False,'history':rows,'complete':False,'stop_reason':'user_stopped','reason':'Investigation stopped by user. Untested commits remain unclassified.'}}
+        from causaltrace.public_demos import PUBLIC_IDS
+        if repository_id in PUBLIC_IDS:
+            from causaltrace.upstream_projects import provenance
+            report['provenance'] = {**provenance(repository_id), 'upstream_revision':selected}
+        return persist(report, reports_root)
     finally:
         ACTIVE_PROFILE.reset(profile_token)
         MODEL_USAGE.reset(usage_token)

@@ -1,4 +1,11 @@
 /* Keep the investigation form aligned independently of the decorative theme. */
+.investigation-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch; gap: 12px; }
+.investigation-actions .run-button { margin: 0; }
+.control-button { min-height: 54px; padding: 12px 24px; border: 2px solid #427b61; border-radius: 10px; color: #294b3b; background: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+.stop-button { color: #8b302a; border-color: #ad5149; background: #fff6f3; }
+.control-button:disabled { opacity: .65; cursor: default; }
+.control-message { grid-column: 1 / -1; padding: 12px 16px; border-left: 4px solid #73539a; background: #f5f0fc; }
+.status-stopped { color: #714918; background: #fff3df; border-color: #c5995c; }
 .investigation-launch .header-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

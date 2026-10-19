@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from causaltrace.test_runner import run_pytest, is_failure, same_tests
+from causaltrace.investigation_control import checkpoint, ACTIVE_CONTROL
 
 
 def run_command(args, cwd):
@@ -49,7 +50,7 @@ def test_commit(
     test_directory: str,
 ):
     """Run pytest at a commit in an isolated Git worktree."""
-
+    checkpoint()
     with tempfile.TemporaryDirectory(prefix="causaltrace-") as temp:
         worktree = Path(temp) / "repo"
 
@@ -67,7 +68,11 @@ def test_commit(
 
         try:
             result = run_pytest(worktree / test_directory)
-
+            control = ACTIVE_CONTROL.get()
+            if control is not None:
+                parts = run_command(['git','show','-s','--format=%H%x1f%h%x1f%s%x1f%aI',commit],repo_path).stdout.strip().split('\x1f',3)
+                control.results.append(dict(zip(('commit','short_hash','message','date'),parts),status=result['status'],result=result))
+            checkpoint()
             return {
                 **result,
                 "commit": commit,

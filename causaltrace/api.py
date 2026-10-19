@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import threading
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -20,15 +21,19 @@ from causaltrace.nemotron_client import configuration
 from causaltrace.pipeline import run_investigation
 from causaltrace.test_runner import docker_status
 from causaltrace.language_runner import committed_runner, MULTILANG_IMAGE
+from causaltrace.investigation_control import ACTIVE_CONTROL, Control
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORTS_ROOT = PROJECT_ROOT / "reports"
 investigation_lock = threading.Lock()
+controls = {}
+controls_lock = threading.Lock()
 log = logging.getLogger("causaltrace")
 app = FastAPI(title="CausalTrace API", version="0.4.0")
 
 
 class InvestigationRequest(BaseModel):
+    control_id: str = Field(default_factory=lambda: uuid.uuid4().hex, pattern=r'^[a-f0-9]{32}$')
     repository_id: str = "config"
     repository_path: str | None = None
     test_directory: str = "."
@@ -110,6 +115,10 @@ def run(request: InvestigationRequest):
         directory = "."
     if not investigation_lock.acquire(blocking=False):
         raise HTTPException(409, "An investigation is already running.")
+    control = Control()
+    with controls_lock:
+        controls[request.control_id] = control
+    control_token = ACTIVE_CONTROL.set(control)
     try:
         repository = repository if repository is not None else ensure_demo(request.repository_id)
         runner = upstream_projects.profile(request.repository_id)["runner"] if request.repository_id in PUBLIC_IDS else request.test_runner
@@ -144,7 +153,24 @@ def run(request: InvestigationRequest):
         log.exception("Git investigation failed")
         raise HTTPException(500, "Git investigation failed. Check Git installation and server logs.") from error
     finally:
+        ACTIVE_CONTROL.reset(control_token)
+        with controls_lock:
+            controls.pop(request.control_id, None)
         investigation_lock.release()
+
+
+class ControlRequest(BaseModel):
+    action: Literal['pause', 'resume', 'stop']
+
+
+@app.post('/api/investigation-control/{control_id}')
+def control_investigation(control_id: str, request: ControlRequest):
+    with controls_lock:
+        control = controls.get(control_id)
+        if control is None:
+            raise HTTPException(404, 'This investigation is no longer running.')
+        state = control.command(request.action)
+    return {'state':state, 'reason':'The active test, setup operation or AI request finishes first. No new operation starts while paused or stopping.'}
 
 
 @app.get("/api/repositories/{repository_id}/timeline")

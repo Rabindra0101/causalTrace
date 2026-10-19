@@ -184,6 +184,8 @@ def docker_status(image_name=None):
 
 def run_pytest(repo_path: Path) -> dict:
     """Compatibility entry point: execute the runner selected for this investigation."""
+    from causaltrace.investigation_control import checkpoint
+    checkpoint()
     repo_path = Path(repo_path).resolve()
     if not repo_path.is_dir():
         return execution_error("The test directory does not exist at this revision.")
@@ -230,6 +232,7 @@ def run_pytest(repo_path: Path) -> dict:
         else:
             mount = []
         command = [*common, "--name", name, "--network", "none", *mount, image, *script]
+        checkpoint()
         result = subprocess.run(
             command, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=180 if upstream_image else TEST_TIMEOUT, check=False,

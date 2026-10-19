@@ -15,6 +15,8 @@ def configuration():
 
 
 def complete(messages, *, structured=False, max_tokens=None):
+    from causaltrace.investigation_control import checkpoint
+    checkpoint()
     limits = settings()
     max_tokens = max_tokens or limits["response_tokens"]
     key, model = configuration()
@@ -31,6 +33,7 @@ def complete(messages, *, structured=False, max_tokens=None):
         usage = response.usage
         ledger.append({'model':model, 'prompt_tokens':usage.prompt_tokens or 0,
                        'completion_tokens':usage.completion_tokens or 0, 'total_tokens':usage.total_tokens or 0})
+    checkpoint()
     choice = response.choices[0]
     if choice.finish_reason == "length":
         raise ValueError("Nemotron response was truncated. Reduce source context and retry.")

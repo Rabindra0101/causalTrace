@@ -34,6 +34,13 @@ Pop-Location
 .\.venv\Scripts\python.exe -m uvicorn causaltrace.api:app --host 127.0.0.1 --port 8000
 ```
 
+While an investigation runs, **Pause**, **Resume** and **Stop** appear beside
+the Run button. They take effect between operations: an active test, setup step
+or provider request finishes first. Pausing waits in the same run; stopping
+releases temporary worktrees and saves completed commit results in a partial
+report. A stopped run does not claim a completed diagnosis or verified repair.
+These controls require the same running backend process; restarting it ends the run.
+
 Open **http://127.0.0.1:8000**. The backend serves `frontend/dist` after a build;
 restart it when that build changes. For frontend development, run `npm.cmd run dev`
 from `frontend` in a second terminal. Vite forwards API requests to port 8000.

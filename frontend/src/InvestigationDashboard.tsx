@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import EvidenceGraph from './EvidenceGraph'
@@ -91,6 +91,10 @@ export default function InvestigationDashboard() {
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const controlId = useRef<string | null>(null)
+  const [controlState, setControlState] = useState('running')
+  const [controlBusy, setControlBusy] = useState(false)
+  const [controlMessage, setControlMessage] = useState('')
   useEffect(() => {
     if (!running) return
     const started = Date.now()
@@ -117,11 +121,13 @@ export default function InvestigationDashboard() {
   }
 
   async function run() {
+    controlId.current = crypto.randomUUID().replaceAll('-', '')
+    setControlState('running'); setControlMessage('')
     setElapsed(0); setRunning(true); setError(''); setReport(null)
     try {
       const data = await fetch('/api/run-investigation', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
+        body: JSON.stringify({ control_id: controlId.current, repository_id: repository, repository_path: repositoryPath,
           test_directory: testDirectory, investigation_type: investigationType,
           share_with_nebius: shareWithNebius, history_limit: historyLimit,
           good_ref: goodRef.trim() || null, bad_ref: badRef.trim() || 'HEAD', max_repair_attempts: maxRepairAttempts,
@@ -133,7 +139,25 @@ export default function InvestigationDashboard() {
       }).then(jsonResponse)
       setReport(data.report)
     } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
-    finally { setRunning(false) }
+    finally { setRunning(false); controlId.current = null; setControlMessage('') }
+  }
+
+  async function control(action: 'pause' | 'resume' | 'stop') {
+    const id = controlId.current
+    if (!id) return
+    setControlBusy(true)
+    try {
+      const result = await fetch(`/api/investigation-control/${id}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action}),
+      }).then(jsonResponse)
+      if (controlId.current !== id) return
+      setControlState(result.state)
+      setControlMessage(action === 'resume' ? 'Investigation resumed.' : action === 'pause'
+        ? 'Pause requested. The current operation finishes first; then work waits until you resume.'
+        : 'Stop requested. Finishing the current operation and saving completed test results.')
+    } catch (e) {
+      if (controlId.current === id) setControlMessage(e instanceof Error ? e.message : 'Unable to control investigation')
+    } finally { setControlBusy(false) }
   }
 
   return <main className="dashboard">
@@ -218,8 +242,12 @@ export default function InvestigationDashboard() {
         {investigationType === 'diagnose' && <p>Tests every commit reachable from the selected revision, including merge parents, before AI diagnosis. There is no commit-count cap; large histories can take a long time. Every test outcome remains visible.</p>}
         <p>AI diagnosis explains errors and suggests fixes, tests and improvements. It can run without proving a Git regression. Suggestions stay unverified until unchanged tests pass after a source repair.</p>
       </fieldset>}
-      <button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
+      <div className="investigation-actions"><button className="run-button" disabled={running || (investigationType === 'release' && !goodRef.trim()) || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
         onClick={() => void run()}>{running ? 'Investigating…' : ({full:'Find breaking change', release:'Run repair agent', diagnose:'Get AI suggestions', regression:'Test Git causes', reproduce:'Explore tested history'}[investigationType] ?? 'Run investigation')}<span aria-hidden="true">↗</span></button>
+        {running && <><button className="control-button" disabled={controlBusy || controlState === 'stopping'} onClick={() => void control(controlState === 'paused' ? 'resume' : 'pause')}>{controlState === 'paused' ? 'Resume' : 'Pause'}</button>
+          <button className="control-button stop-button" disabled={controlBusy || controlState === 'stopping'} onClick={() => void control('stop')}>{controlState === 'stopping' ? 'Stopping…' : 'Stop'}</button></>}
+      </div>
+      {running && controlMessage && <p className="control-message" role="status" aria-live="polite">{controlMessage}</p>}
     </div></section>
 
     <section className="panel setup-panel" id="readiness"><div className="setup-heading"><div><p className="section-kicker">BEFORE YOU BEGIN</p><h2>Workspace readiness</h2></div>
