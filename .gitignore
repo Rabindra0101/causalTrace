@@ -221,3 +221,8 @@ __marimo__/
 
 # CausalTrace generated investigation reports
 /reports/
+/.causaltrace/
+/deployment/*-repo/
+/deployment/negative-reversal-demo/
+.env
+!.env.example

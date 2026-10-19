@@ -4,7 +4,7 @@ import tempfile
 import shutil
 from pathlib import Path
 
-from causaltrace.test_runner import run_pytest
+from causaltrace.test_runner import run_pytest, is_failure, same_tests
 
 
 def run_command(args, cwd):
@@ -24,6 +24,8 @@ def classify_test_result(result: dict) -> str:
     """
     Distinguish a genuine pytest failure from an execution error.
     """
+    if is_failure(result):
+        return "fail"
     if result.get("execution_error"):
         return "error"
 
@@ -65,6 +67,7 @@ def test_commit(
             result = run_pytest(worktree / test_directory)
 
             return {
+                **result,
                 "commit": commit,
                 "passed": result["passed"],
                 "return_code": result["return_code"],
@@ -237,6 +240,8 @@ def verify_by_reversal(
                 if after is not None
                 else None
             ),
+            "before": before,
+            "after": after,
         }
 
     with tempfile.TemporaryDirectory(
@@ -351,7 +356,7 @@ def verify_by_reversal(
                 print(after["stderr"])
 
             # 5. Classify the experiment.
-            if after_status == "pass":
+            if after_status == "pass" and same_tests(before, after):
                 outcome = "verified"
                 reason = (
                     "Tests failed before reversal and passed afterward. "

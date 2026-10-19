@@ -1,5 +1,6 @@
-openai
-python-dotenv
-pytest
-fastapi
-uvicorn
+openai>=1,<4
+python-dotenv>=1,<2
+pytest>=8,<10
+fastapi>=0.115,<1
+pydantic>=2,<3
+uvicorn>=0.30,<1
