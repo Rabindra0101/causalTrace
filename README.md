@@ -1,6 +1,6 @@
 # CausalTrace
 
-Find the Git change that broke working Python software, explain the evidence with
+Find the Git change that broke working software, explain the evidence with
 NVIDIA Nemotron on Nebius Token Factory, and test a proposed repair.
 
 The main dashboard runs one connected investigation:
@@ -84,14 +84,15 @@ template with cp .env.example .env. Remaining commands are the same.
 The dashboard has independent Repository and Investigation type selectors. Choose
 one of the bundled demos or **Local Git repository**, then enter its absolute path
 and a relative, self-contained test directory (default `.`). Local repositories
-must have a committed HEAD and no tracked edits. Execution uses pytest in the
-Docker runner; additional project dependencies must be installed in that image.
+must have a committed HEAD and no tracked edits. Select a supported test runner
+or detect it from committed project manifests. Dependencies must be installed
+in its Docker image. See [MULTILANGUAGE.md](MULTILANGUAGE.md) for setup.
 Original source files remain unchanged. Local results include boundary commit
 IDs and test evidence; the interactive demo timeline is available for demos only.
 
 - **Reproduce failure only** runs tests at committed HEAD.
 - **Git regression and reversal** also searches history and runs reversal controls.
-- **Full investigation and repair** additionally sends committed Python source,
+- **Full investigation and repair** additionally sends committed source,
   test logs and the candidate diff to Nebius, proposes a repair, and tests it.
 
 Only the full mode contacts the model. Review committed sources for secrets
@@ -115,13 +116,16 @@ It does not scan local files or GitHub automatically.
 
 ## Investigate your own repository from the CLI
 
+See [MULTILANGUAGE.md](MULTILANGUAGE.md) for JavaScript/TypeScript, Java and Go
+runner setup, dependency images and supported test frameworks.
+
 ~~~powershell
 python -m causaltrace.main --repo "C:\path\to\your\repository" --test-dir "tests"
 ~~~
 
 Set --test-dir to a directory containing the implementation and tests needed for
 execution. Use "." for a small self-contained repository. Commit/stash tracked edits
-first. Python source is read from committed HEAD. Untracked application files are
+first. Source is read from committed HEAD. Untracked application files are
 not included. The entire test directory is mounted read-only into the container;
 it must be self-contained. Dependencies beyond pytest must already exist in your
 runner image, because test containers have no network. Patches are not written to

@@ -7,6 +7,7 @@ from pathlib import Path
 from causaltrace.demo_setup import DEMO_IDS, ensure_demo
 from causaltrace.pipeline import run_investigation
 from causaltrace.test_runner import docker_status
+from causaltrace.language_runner import RUNNERS, committed_runner, MULTILANG_IMAGE
 
 
 def main():
@@ -14,16 +15,21 @@ def main():
     parser.add_argument("--repository", choices=DEMO_IDS, default="config", help="Bundled demo")
     parser.add_argument("--repo", type=Path, help="Explicit local repository root (CLI only)")
     parser.add_argument("--test-dir", default=".", help="Test directory relative to --repo")
+    parser.add_argument("--test-runner", choices=RUNNERS, default="auto")
+    parser.add_argument("--runner-image", help="Prepared Docker image containing project test dependencies")
     args = parser.parse_args()
-    docker = docker_status()
+    repo = args.repo.resolve() if args.repo else ensure_demo(args.repository)
+    directory = args.test_dir if args.repo else "."
+    runner = committed_runner(repo, directory, args.test_runner)
+    docker = docker_status(args.runner_image or MULTILANG_IMAGE) if runner != "pytest" or args.runner_image else docker_status()
     if not docker["ready"]:
         print(docker["reason"])
         return 2
-    repo = args.repo.resolve() if args.repo else ensure_demo(args.repository)
     report = run_investigation(
         repo, args.test_dir if args.repo else ".",
         "local" if args.repo else args.repository,
         Path(__file__).resolve().parent.parent / "reports",
+        test_runner=runner, runner_image=args.runner_image,
     )
     print(json.dumps({"id": report["id"], "status": report["status"],
                       "reason": report.get("reason"),

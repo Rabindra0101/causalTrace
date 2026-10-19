@@ -8,6 +8,7 @@ from causaltrace.build_doctor import BuildRequest, SourceFile, investigate, veri
 from causaltrace.evidence_graph import build_investigation_graph
 from causaltrace.nemotron_client import configuration
 from causaltrace.test_runner import is_failure
+from causaltrace.language_runner import RUNNER, IMAGE, committed_runner, is_test_path
 from causaltrace.verifier import classify_test_result, run_command, test_commit, verify_by_reversal
 
 
@@ -25,7 +26,7 @@ def tracked_sources(repo, test_directory):
         if prefix and not path.startswith(prefix + "/"):
             continue
         relative = path[len(prefix) + 1:] if prefix else path
-        if not relative.endswith(".py"):
+        if not relative.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".go")):
             continue
         if (repo / path).is_symlink():
             raise ValueError("Symbolic links are not supported as repair evidence.")
@@ -33,7 +34,7 @@ def tracked_sources(repo, test_directory):
         # Preserve complete source lines; the model needs exact fragments for patches.
         files.append(SourceFile(path=relative, content=content.lstrip("\ufeff")))
     if not files:
-        raise ValueError("No Python source was found in the configured test directory.")
+        raise ValueError("No supported source was found in the configured test directory.")
     return files
 
 
@@ -77,7 +78,18 @@ def persist(report, reports_root):
     return report
 
 
-def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full"):
+def run_investigation(repo, directory, repository_id, reports_root, investigation_type="full",
+                      test_runner="auto", runner_image=None):
+    runner_token = RUNNER.set(committed_runner(repo, directory, test_runner))
+    image_token = IMAGE.set(runner_image)
+    try:
+        return _run_investigation(repo, directory, repository_id, reports_root, investigation_type)
+    finally:
+        IMAGE.reset(image_token)
+        RUNNER.reset(runner_token)
+
+
+def _run_investigation(repo, directory, repository_id, reports_root, investigation_type):
     if investigation_type not in {"full", "regression", "reproduce"}:
         raise ValueError("Unknown investigation type.")
     repo = Path(repo).resolve()
@@ -96,13 +108,17 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
         "baseline_revision": git(repo, "rev-parse", "HEAD"), "experiments": {},
         "repair": None, "ai_analysis": {"status": "not_run"},
         "investigation_type": investigation_type,
+        "test_runner": RUNNER.get(),
     }
     # Test a committed worktree, not untracked/edited local files.
     baseline = test_commit(repo, "HEAD", directory)
     report["baseline"] = baseline
     if not is_failure(baseline):
         report["status"] = "no_failure" if baseline.get("passed") else "execution_error"
-        report["reason"] = "Committed tests pass." if baseline.get("passed") else "Unable to run the baseline tests. Check Docker and runner setup."
+        report["reason"] = ("Committed tests pass." if baseline.get("passed") else
+                            "No tests were collected. Choose a directory containing committed tests for the selected runner."
+                            if baseline.get("return_code") in (0, 5) and not baseline.get("test_ids") else
+                            "The baseline produced no valid test outcome. Expand test output for missing dependencies, build errors or runner setup details.")
         return persist(report, reports_root)
     if investigation_type == "reproduce":
         report["status"] = "completed"
@@ -118,8 +134,7 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
     report["candidate_diff"] = diff
     # A test edit can change expected behavior; do not present that as an implementation cause.
     changed = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", suspect).splitlines()
-    if any(Path(p).name.startswith("test_") or Path(p).name.endswith("_test.py")
-           or Path(p).name == "conftest.py" or "tests" in Path(p).parts for p in changed):
+    if any(is_test_path(p) for p in changed):
         report["reason"] = "The boundary changes tests. Implementation causality requires review."
         report["regression"]["confirmed"] = False
         return persist(report, reports_root)
@@ -147,7 +162,8 @@ def run_investigation(repo, directory, repository_id, reports_root, investigatio
         report["ai_analysis"] = {"status": "completed", "provider": repair["provider"],
                                  "model": repair["model"], "hypothesis": explanation}
         if repair["patch"]:
-            repair["verification"] = verify(repair["id"])
+            repair["verification"] = (verify(repair["id"]) if RUNNER.get() == "pytest" else
+                                      verify(repair["id"], repository=repo, directory=directory))
     except Exception:
         # Preserve experimental evidence on missing key, provider outage or malformed response.
         key, model = configuration()

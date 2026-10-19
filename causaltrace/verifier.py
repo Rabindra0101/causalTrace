@@ -281,7 +281,7 @@ def verify_by_reversal(
             if before_status != "fail":
                 return result_payload(
                     "inconclusive",
-                    "Baseline tests did not produce a valid pytest failure.",
+                    "Baseline tests did not produce a valid test failure.",
                     before=before,
                 )
 
@@ -348,7 +348,7 @@ def verify_by_reversal(
                 f"{after.get('return_code')}"
             )
 
-            print("\nAfter reversal pytest output:")
+            print("\nAfter reversal test output:")
             print(after.get("stdout", after.get("output", "")))
 
             if after.get("stderr"):

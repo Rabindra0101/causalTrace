@@ -17,7 +17,7 @@ type Repair = {
   verification: { status: string; reason?: string; before?: TestRun; after?: TestRun | null }
 }
 type Report = {
-  id: string; repository_id: string; status: string; reason: string; investigation_type?: string
+  id: string; repository_id: string; status: string; reason: string; investigation_type?: string; test_runner?: string
   baseline_revision: string; baseline: TestRun; candidate_diff?: string
   regression?: { confirmed: boolean; suspected_commit?: string; parent_revision?: string }
   experiments: { commit_reversal?: Experiment; alternative_reversal?: Experiment }
@@ -31,7 +31,7 @@ type Report = {
 }
 type Health = {
   git_available: boolean; nebius_configured: boolean
-  docker: { ready: boolean; reason: string }
+  docker: { ready: boolean; available?: boolean; reason: string }
 }
 
 async function jsonResponse(response: Response) {
@@ -65,6 +65,8 @@ export default function InvestigationDashboard() {
   const [repositoryPath, setRepositoryPath] = useState('')
   const [testDirectory, setTestDirectory] = useState('.')
   const [investigationType, setInvestigationType] = useState('full')
+  const [testRunner, setTestRunner] = useState('auto')
+  const [runnerImage, setRunnerImage] = useState('')
   const [health, setHealth] = useState<Health | null>(null)
   const [report, setReport] = useState<Report | null>(null)
   const [running, setRunning] = useState(false)
@@ -95,7 +97,9 @@ export default function InvestigationDashboard() {
       const data = await fetch('/api/run-investigation', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repository_id: repository, repository_path: repositoryPath,
-          test_directory: testDirectory, investigation_type: investigationType }),
+          test_directory: testDirectory, investigation_type: investigationType,
+          test_runner: repository === 'local' ? testRunner : 'pytest',
+          runner_image: repository === 'local' ? runnerImage.trim() || null : null }),
       }).then(jsonResponse)
       setReport(data.report)
     } catch (e) { setError(e instanceof Error ? e.message : 'Investigation failed') }
@@ -116,10 +120,23 @@ export default function InvestigationDashboard() {
         </select>
       </label>
       {repository === 'local' && <>
+        <label className="repository-selector"><span>Test runner</span>
+          <select value={testRunner} disabled={running} onChange={e => { setTestRunner(e.target.value); setReport(null) }}>
+            <option value="auto">Detect from committed project files</option>
+            <option value="pytest">Python — pytest</option>
+            <option value="node">JavaScript — Node test runner</option>
+            <option value="vitest">JavaScript / TypeScript — Vitest</option>
+            <option value="jest">JavaScript / TypeScript — Jest</option>
+            <option value="maven">Java — Maven / Surefire</option>
+            <option value="go">Go — go test</option>
+          </select></label>
+        <label className="repository-selector"><span>Prepared runner image (optional)</span>
+          <input value={runnerImage} disabled={running} placeholder="Default image for selected runner"
+            onChange={e => { setRunnerImage(e.target.value); setReport(null) }} /></label>
         <label className="repository-selector"><span>Absolute repository path</span>
           <input value={repositoryPath} disabled={running} placeholder="C:\\projects\\my-repo"
             onChange={e => { setRepositoryPath(e.target.value); setReport(null) }} /></label>
-        <label className="repository-selector"><span>Test directory (relative to repository)</span>
+        <label className="repository-selector"><span>Project / test directory (relative to repository)</span>
           <input value={testDirectory} disabled={running} placeholder="."
             onChange={e => { setTestDirectory(e.target.value); setReport(null) }} /></label>
       </>}
@@ -131,13 +148,14 @@ export default function InvestigationDashboard() {
           <option value="reproduce">Reproduce failure only</option>
         </select>
       </label>
-      <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !health?.docker.ready || (repository === 'local' && !repositoryPath.trim())}
+      <button className="run-button" disabled={running || !repositories.length || !health?.git_available || !(health?.docker.ready || (repository === 'local' && health?.docker.available)) || (repository === 'local' && !repositoryPath.trim())}
         onClick={() => void run()}>{running ? 'Investigating…' : 'Run investigation'}</button>
     </div></header>
 
     <section className="panel setup-panel"><h2>Readiness</h2>
       {health ? <><p>Git: {health.git_available ? 'ready' : 'missing'} · Docker: {health.docker.ready ? 'ready' : 'setup needed'} · Nebius key: {health.nebius_configured ? 'configured' : 'missing'}</p>
         {!health.docker.ready && <p role="status">{health.docker.reason}</p>}
+        {repository === 'local' && <p>The selected test runner image and dependencies are checked when you run the investigation.</p>}
         {!health.nebius_configured && <p>Set NEBIUS_API_KEY in .env for model analysis and proposed repairs. Git evidence can still be collected when Docker is ready.</p>}
       </> : <p>Checking backend setup…</p>}
       <button className="doctor-secondary" disabled={checking || running} onClick={() => void refresh()}>{checking ? 'Checking…' : 'Check setup again'}</button>
@@ -151,16 +169,17 @@ export default function InvestigationDashboard() {
 
     {!report && !running && <section className="panel"><h2>Start with the configuration regression</h2>
       <p>Each bundled demo has a passing commit, a breaking commit, and an unrelated documentation commit. CausalTrace runs the tests and investigates the history from those source files.</p>
-      <p className="subtitle">Choose a bundled demo or enter a local Git repository path. Local investigations use committed Python files and pytest; commit or stash tracked edits first. The test directory must be self-contained, and its dependencies must exist in the Docker runner.</p>
-      <p>Full investigations send committed Python source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
+      <p className="subtitle">Choose a bundled demo or a local Git repository with Python, JavaScript/TypeScript, Java or Go tests. Commit or stash tracked edits first. Select the project directory containing its manifest, sources and tests. Dependencies must be prepared in the runner image; test containers have no network.</p>
+      <p>Full investigations send committed source, logs and the candidate diff to Nebius. Review your source for secrets first. The other investigation types run without model requests.</p>
     </section>}
 
     {report && <>
       <section className="panel"><h2>Run result <span className="run-badge">{report.status.replaceAll('_', ' ')}</span></h2>
         <p>{report.reason}</p><p className="subtitle">Investigation {report.id.slice(0, 8)} · committed HEAD {report.baseline_revision.slice(0, 8)}</p>
+        {report.test_runner && <p>Test runner: <strong>{report.test_runner}</strong></p>}
         <a className="report-download" href={`/api/investigation?report_id=${report.id}`} download={`causaltrace-${report.id}.json`}>Download this evidence report</a>
       </section>
-      <section className="panel"><h2>1. Reproduced failure</h2><Output title="Baseline test output" run={report.baseline} /></section>
+      <section className="panel"><h2>1. Baseline tests</h2><Output title="Baseline test output" run={report.baseline} /></section>
       {report.regression && <section className="panel"><h2>2. Regression boundary</h2>
         <p>Boundary: {report.regression.confirmed ? 'confirmed by historical tests' : 'inconclusive'}</p>
         {report.regression.suspected_commit && <p>Breaking commit: <code>{report.regression.suspected_commit}</code></p>}

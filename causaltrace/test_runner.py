@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
+from causaltrace.language_runner import DRIVER, RUNNER, IMAGE, MULTILANG_IMAGE
 
 DOCKER_IMAGE = "causaltrace-test-runner:local"
 TEST_TIMEOUT = 60
@@ -71,7 +72,7 @@ def parse_result(return_code, stdout, stderr):
             except (ValueError, TypeError):
                 pass
     if not isinstance(summary, dict):
-        return execution_error(output.strip() or "No pytest evidence was returned.", return_code)
+        return execution_error(output.strip() or "No structured test evidence was returned.", return_code)
     required = ("test_ids", "passed_ids", "failed_ids", "skipped_ids", "collection_errors")
     if any(not isinstance(summary.get(key), list) for key in required):
         return execution_error("Malformed test-runner evidence.", return_code)
@@ -81,8 +82,8 @@ def parse_result(return_code, stdout, stderr):
         and not summary["failed_ids"] and not summary["collection_errors"]
         and not summary["skipped_ids"]
     )
-    failed = return_code == 1 and bool(summary["failed_ids"])
-    collection_error = return_code == 2 and bool(summary["collection_errors"])
+    failed = return_code in (1, 2) and bool(summary["failed_ids"])
+    collection_error = return_code in (1, 2) and bool(summary["collection_errors"]) and not failed
     status = "pass" if passed else "fail" if failed else "collection_error" if collection_error else "error"
     visible = "\n".join(line for line in output.splitlines() if not line.startswith(SUMMARY_MARKER))
     return {
@@ -113,7 +114,8 @@ def cleanup_container(name):
         pass
 
 
-def docker_status():
+def docker_status(image_name=None):
+    image_name = image_name or IMAGE.get() or (DOCKER_IMAGE if RUNNER.get() == "pytest" else MULTILANG_IMAGE)
     if not shutil.which("docker"):
         return {"ready": False, "reason": "Docker is not installed or is not on PATH."}
     try:
@@ -121,33 +123,40 @@ def docker_status():
                                 capture_output=True, text=True, timeout=5)
         if daemon.returncode:
             return {"ready": False, "reason": "Start Docker Desktop using Linux containers."}
-        image = subprocess.run(["docker", "image", "inspect", DOCKER_IMAGE],
+        image = subprocess.run(["docker", "image", "inspect", image_name],
                                capture_output=True, timeout=5)
         return {
             "ready": image.returncode == 0,
+            "available": True,
             "reason": "Runner ready." if image.returncode == 0 else
-                "Build the runner: docker build -f Dockerfile.test-runner -t causaltrace-test-runner:local .",
+                f"Runner image {image_name} is missing. Build the selected runner image first.",
         }
     except (OSError, subprocess.SubprocessError):
         return {"ready": False, "reason": "Docker did not respond. Check Docker Desktop."}
 
 
 def run_pytest(repo_path: Path) -> dict:
+    """Compatibility entry point: execute the runner selected for this investigation."""
     repo_path = Path(repo_path).resolve()
     if not repo_path.is_dir():
         return execution_error("The test directory does not exist at this revision.")
     if not shutil.which("docker"):
         return execution_error("Docker is unavailable. Install/start Docker Desktop and build the runner.")
     name = f"causaltrace-test-{uuid.uuid4().hex[:12]}"
+    runner = RUNNER.get()
+    image = IMAGE.get() or (DOCKER_IMAGE if runner == "pytest" else MULTILANG_IMAGE)
+    script = ["python", "-c", PYTEST_SCRIPT] if runner == "pytest" else ["python", "-c", DRIVER, runner]
     command = [
         "docker", "run", "--rm", "--name", name, "--network", "none",
         "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "--memory", "256m", "--cpus", "1", "--pids-limit", "64",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
+        "--memory", "256m" if runner == "pytest" else "1g",
+        "--cpus", "1" if runner == "pytest" else "2",
+        "--pids-limit", "64" if runner == "pytest" else "256",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m" if runner == "pytest" else "/tmp:rw,exec,nosuid,size=512m",
         "-e", "PYTHONDONTWRITEBYTECODE=1",
         "-e", "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
         "--mount", f"type=bind,source={repo_path},target=/workspace,readonly",
-        "-w", "/workspace", DOCKER_IMAGE, "python", "-c", PYTEST_SCRIPT,
+        "-w", "/workspace", image, *script,
     ]
     try:
         result = subprocess.run(

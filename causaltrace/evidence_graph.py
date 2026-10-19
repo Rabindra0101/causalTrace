@@ -153,7 +153,7 @@ def build_investigation_graph(
     )
 
         # Add an evidence node for each failed pytest test.
-    failed_tests = extract_failed_tests(
+    failed_tests = test_result.get("failed_ids") or extract_failed_tests(
         test_result.get("output", "")
     )
 

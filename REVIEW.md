@@ -1,5 +1,21 @@
 # Submission readiness review
 
+## Multilingual runner update — October 18, 2026
+
+- Added committed-manifest detection and explicit pytest, Node, Vitest, Jest,
+  Maven/Surefire and Go runner selections, including prepared dependency images.
+- Verified actual offline Docker passing/failing fixtures for Node, Go,
+  TypeScript/Vitest, Jest and Java/Maven. Node and Go zero-test runs cannot pass.
+- Verified a complete Node Git boundary, suspected reversal, unrelated reversal
+  and repair experiment with a mocked model. Original HEAD/source stayed unchanged.
+- Adapter fixtures cover skips, absent testcases, build failures without evidence,
+  protected tests/manifests, committed detection and runner context cleanup.
+- Non-Python repair verification uses the full committed worktree and the same
+  selected test runner; model repairs cannot edit recognized test files/config.
+- This does not certify arbitrary projects. Dependencies/native libraries must be
+  prepared in the selected image, actual tests must exist, and the documented
+  source-context/resource limits still apply. See MULTILANGUAGE.md.
+
 ## Original blockers found
 
 - Git investigation and Build Doctor were separate workflows. Git results did not feed repair proposals.

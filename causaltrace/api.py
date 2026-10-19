@@ -10,13 +10,14 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from causaltrace.build_api import router as build_router
 from causaltrace.demo_setup import DEMO_IDS, demo_catalog, ensure_demo
 from causaltrace.nemotron_client import configuration
 from causaltrace.pipeline import run_investigation
 from causaltrace.test_runner import docker_status
+from causaltrace.language_runner import committed_runner, MULTILANG_IMAGE
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORTS_ROOT = PROJECT_ROOT / "reports"
@@ -31,6 +32,8 @@ class InvestigationRequest(BaseModel):
     repository_path: str | None = None
     test_directory: str = "."
     investigation_type: Literal["full", "regression", "reproduce"] = "full"
+    test_runner: Literal["auto", "pytest", "node", "vitest", "jest", "maven", "go"] = "auto"
+    runner_image: str | None = Field(default=None, min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$")
 
 
 @app.get("/api/health")
@@ -89,12 +92,15 @@ def run(request: InvestigationRequest):
     if not investigation_lock.acquire(blocking=False):
         raise HTTPException(409, "An investigation is already running.")
     try:
-        docker = docker_status()
+        repository = repository if repository is not None else ensure_demo(request.repository_id)
+        selected_runner = committed_runner(repository, directory, request.test_runner)
+        docker = (docker_status(request.runner_image or MULTILANG_IMAGE) if selected_runner != "pytest" or request.runner_image
+                  else docker_status())
         if not docker["ready"]:
             raise HTTPException(503, docker["reason"])
-        repository = repository if repository is not None else ensure_demo(request.repository_id)
         report = run_investigation(repository, directory, request.repository_id, REPORTS_ROOT,
-                                   investigation_type=request.investigation_type)
+                                   investigation_type=request.investigation_type,
+                                   test_runner=selected_runner, runner_image=request.runner_image)
         return {"status": report["status"], "report": report}
     except HTTPException:
         raise
