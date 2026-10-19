@@ -1,0 +1,219 @@
+.doctor {
+    max-width: 1400px;
+    margin: auto;
+    padding: 40px 24px;
+    color: #dce7f4;
+  }
+  
+  .doctor-hero {
+    padding: 30px 0 42px;
+  }
+  
+  .doctor-kicker {
+    letter-spacing: 3px;
+    color: #62dfbc;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  
+  .doctor h1 {
+    font-size: clamp(36px, 5vw, 66px);
+    line-height: 1.08;
+    letter-spacing: -2px;
+    margin: 20px 0;
+  }
+  
+  .doctor h1 span {
+    color: #7c96b5;
+  }
+  
+  .doctor-hero > p {
+    max-width: 640px;
+  }
+  
+  .doctor-flow {
+    color: #62dfbc;
+    font-size: 13px;
+    margin-top: 26px;
+  }
+  
+  .doctor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  
+  .doctor-panel {
+    border: 1px solid #2b3b50;
+    border-radius: 18px;
+    background: #101d2e;
+    padding: 26px;
+    min-width: 0;
+  }
+  
+  .doctor h2 {
+    font-size: 17px;
+    margin: 0 0 24px;
+  }
+  
+  .doctor h3 {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  
+  .doctor fieldset {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    min-width: 0;
+  }
+  
+  .doctor label {
+    display: block;
+    font-size: 13px;
+    color: #c6d6e9;
+    margin-bottom: 18px;
+  }
+  
+  .doctor textarea,
+  .doctor input,
+  .doctor select {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    background: #091320;
+    border: 1px solid #33465f;
+    border-radius: 8px;
+    color: #e4edf7;
+    padding: 12px;
+    margin-top: 8px;
+    font: 13px/1.6 monospace;
+  }
+  
+  .doctor textarea {
+    resize: vertical;
+  }
+  
+  .doctor select {
+    font-family: inherit;
+  }
+  
+  .doctor-note {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #9cb0c8;
+  }
+  
+  .doctor-file {
+    border-top: 1px solid #2c3c51;
+    padding-top: 16px;
+    margin-top: 12px;
+  }
+  
+  .doctor button {
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    border-radius: 8px;
+    padding: 11px 16px;
+    margin-bottom: 16px;
+  }
+  
+  .doctor-primary {
+    color: #09271f;
+    background: #69e1be;
+    border: 0;
+  }
+  
+  .doctor-secondary {
+    color: #c9d9eb;
+    background: transparent;
+    border: 1px solid #405775;
+  }
+  
+  .doctor button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  
+  .doctor-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    background: #203a49;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #8ce8cd;
+  }
+  
+  .doctor pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: #080f19;
+    padding: 16px;
+    border-radius: 10px;
+    font: 12px/1.7 monospace;
+    max-height: 400px;
+    overflow: auto;
+  }
+  
+  .doctor li {
+    font-size: 14px;
+    line-height: 1.8;
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+  }
+  
+  .doctor-empty {
+    padding: 44px 0;
+    color: #9cb0c8;
+    line-height: 1.8;
+  }
+  
+  .doctor-error {
+    color: #ffb4b4;
+    overflow-wrap: anywhere;
+  }
+  
+  .doctor details {
+    margin-top: 18px;
+    font-size: 13px;
+  }
+  
+  .mode-nav {
+    display: flex;
+    gap: 12px;
+    padding: 18px 24px;
+    border-bottom: 1px solid #293b50;
+    background: #0b1421;
+  }
+  
+  .mode-nav button {
+    padding: 10px 18px;
+    color: #c9d9eb;
+    background: #17283d;
+    border: 1px solid #3a526c;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  
+  .mode-nav button[aria-pressed="true"] {
+    border-color: #69e1be;
+    color: #69e1be;
+  }
+  
+  @media (max-width: 850px) {
+    .doctor-layout {
+      grid-template-columns: 1fr;
+    }
+  
+    .doctor {
+      padding: 20px 14px;
+    }
+  
+    .doctor-panel {
+      padding: 18px;
+    }
+  }

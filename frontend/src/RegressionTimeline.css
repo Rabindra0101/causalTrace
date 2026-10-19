@@ -1,0 +1,134 @@
+
+.timeline-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.timeline-count {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.timeline-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.5rem;
+  padding-left: 1rem;
+}
+
+.timeline-list::before {
+  content: '';
+  position: absolute;
+  left: 1.4rem;
+  top: 1rem;
+  bottom: 1rem;
+  width: 2px;
+  background: #374151;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.85rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-item:hover,
+.timeline-selected {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.timeline-node {
+  z-index: 1;
+  flex-shrink: 0;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.2rem;
+  border: 3px solid #64748b;
+  border-radius: 50%;
+  background: #111827;
+}
+
+.timeline-suspected .timeline-node {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.13);
+}
+
+.timeline-item-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.timeline-item-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.timeline-item-top code {
+  color: #c4b5fd;
+}
+
+.timeline-message {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.timeline-item time {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.timeline-badge,
+.timeline-untested {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.timeline-badge {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.13);
+}
+
+.timeline-untested {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.timeline-detail {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.35);
+  overflow-wrap: anywhere;
+}
+
+.timeline-detail h3 {
+  margin-top: 0;
+}

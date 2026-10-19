@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -211,12 +211,6 @@ export default function EvidenceGraph({ nodes, edges }: Props) {
 
   const selectedNode =
     nodes.find(node => node.id === selectedNodeId) ?? null
-
-  useEffect(() => {
-    if (selectedNodeId && !nodes.some(node => node.id === selectedNodeId)) {
-      setSelectedNodeId(null)
-    }
-  }, [nodes, selectedNodeId])
 
   const flowNodes = useMemo<Node[]>(() => {
     const mainOrder = [
