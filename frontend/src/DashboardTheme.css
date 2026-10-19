@@ -78,7 +78,7 @@ body { background: radial-gradient(ellipse at 94% 5%, #e6e1fa 0, transparent 29%
 .readiness-item strong { display: block; font-size: 12px; color: #3e5d4a; margin-bottom: 3px; }
 .readiness-item div > span { font-size: 10px; color: #5f7362; }
 .readiness-dot { flex-shrink: 0; margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: #4c9d70; box-shadow: 0 0 0 4px #509e7010; }
-.needs-setup .readiness-dot { background: #c48529; box-shadow: 0 0 0 4px #c4852912; }
+.needs-setup .readiness-dot { background: #d94841; box-shadow: 0 0 0 4px #d9484112; }
 .setup-panel > p { color: #5a705c; margin-bottom: 0; font-size: 11px; }
 .getting-started { background: #fffaf3; border-color: #ece2d2; }
 .getting-started > .section-kicker { color: #ab8554; }
