@@ -4,6 +4,7 @@ import './DashboardTheme.css'
 import './Accessibility.css'
 import './InvestigationControls.css'
 import './Readiness.css'
+import './DashboardEffects.css'
 
 export default function App() {
   return <InvestigationDashboard />

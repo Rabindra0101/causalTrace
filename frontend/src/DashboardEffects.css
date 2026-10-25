@@ -1,0 +1,60 @@
+/* Color and depth without changing the accessible form geometry. */
+body {
+  background: radial-gradient(ellipse at 0% 0%, #d9f4f0, transparent 44%),
+    radial-gradient(ellipse at 100% 12%, #e8e0ff, transparent 46%),
+    radial-gradient(ellipse at 85% 85%, #ffe8d6, transparent 42%), #f5f7fc;
+}
+.workspace-nav { border-bottom-color: #ccd8eb; }
+.brand-symbol { background: linear-gradient(135deg, #087b76, #5550ad); box-shadow: 0 5px 16px #5145a52b; }
+.header h1 { color: #24345b; }
+.header h1 > span { color: #6642ab; -webkit-text-fill-color: #6642ab; }
+.eyebrow { color: #564190; }
+.language-chips span { background: #fff; border-color: #cbd8e7; box-shadow: 0 3px 8px #35497708; }
+.language-chips span:nth-child(2) { background: #f0eaff; color: #5d348f; border-color: #d4c3ed; }
+.language-chips span:nth-child(3) { background: #fff1e3; color: #86420f; border-color: #ecd1b7; }
+.language-chips span:nth-child(4) { background: #e3f6ff; color: #1b587c; border-color: #b8dce9; }
+.investigation-launch, .panel { box-shadow: 0 12px 36px #31416a09; }
+.investigation-launch { border-color: #d6d5ec; }
+.investigation-launch::before { height: 4px; background: linear-gradient(90deg, #008875, #7650bd 48%, #db7136); }
+.launch-heading h2, .panel h2 { color: #293d63; }
+.workspace-pill { color: #574087; background: #f2edfc; border-color: #d9cdef; }
+.mode-card { --card-accent: #386dba; --card-tint: #edf4ff; position: relative; border-color: #ccd7e7; border-left: 4px solid var(--card-accent); }
+.mode-card:nth-child(2) { --card-accent: #7650b0; --card-tint: #f4edff; }
+.mode-card:nth-child(3) { --card-accent: #b15b23; --card-tint: #fff4e9; }
+.mode-card:nth-child(4) { --card-accent: #087b76; --card-tint: #e8f7f4; }
+.mode-card:nth-child(5) { --card-accent: #a64272; --card-tint: #fff0f6; }
+.mode-card input { accent-color: var(--card-accent); }
+.mode-card:hover, .mode-card.is-selected { background: var(--card-tint); border-color: var(--card-accent); }
+.mode-card.is-selected { box-shadow: 0 4px 14px #35456a12; }
+.mode-card strong { color: #293b58; }
+.mode-card span span { color: #43536b; }
+.run-button { background: linear-gradient(115deg, #126a76, #5842a1); border-color: #484291; box-shadow: 0 7px 18px #57409f24; }
+.run-button:hover:not(:disabled) { background: linear-gradient(115deg, #0d5661, #463185); box-shadow: 0 10px 22px #57409f35; }
+.setup-panel { background: linear-gradient(110deg, #eaf6f3, #eef0fd); border-color: #cfdded; }
+.readiness-item:not(.needs-setup) { background: #ffffffc9; border-color: #cfdfe2; }
+.getting-started { background: linear-gradient(120deg, #fff6e9, #f9f1ff); border-color: #e9d6df; }
+.result-panel { background: linear-gradient(115deg, #e8f7f2, #f3f0ff 85%); }
+.preparation-options { background: #f7f3ff; border-color: #d7c8ee; }
+.trace-note { box-shadow: 0 18px 35px #4342781a; }
+.note-source { background: #d5f2e9; border-color: #a6dacc; }
+.note-verify { background: #eee1ff; border-color: #d5baed; }
+.trace-orbit { border-color: #aca2d44d; }
+.workspace-footer { border-top-color: #d5d9e9; }
+@media (prefers-reduced-motion: no-preference) {
+  .header, .investigation-launch { animation: dashboard-arrive .55s ease-out both; }
+  .investigation-launch { animation-delay: .08s; }
+  .note-source { animation: source-float 4s ease-in-out 1; }
+  .note-verify { animation: verify-float 4s ease-in-out 1; }
+  .mode-card, .language-chips span, .readiness-item { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
+  .mode-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px #35456a14; }
+  .language-chips span:hover { transform: translateY(-2px); }
+  .readiness-item:hover { box-shadow: 0 5px 16px #35456a0e; }
+  details[open] > .run-output { animation: dashboard-arrive .2s ease-out; }
+}
+@keyframes dashboard-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes source-float { 0%, 100% { transform: rotate(-5deg); } 50% { transform: translateY(-9px) rotate(-3deg); } }
+@keyframes verify-float { 0%, 100% { transform: rotate(5deg); } 50% { transform: translateY(7px) rotate(3deg); } }
+@media (forced-colors: active) {
+  .header h1 > span { color: CanvasText; -webkit-text-fill-color: CanvasText; }
+  .mode-card.is-selected { outline: 2px solid Highlight; }
+}
