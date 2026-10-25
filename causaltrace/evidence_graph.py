@@ -113,7 +113,7 @@ def build_investigation_graph(
         "root_cause_hypothesis",
         "ai_hypothesis",
         {
-            "model": "nvidia/nemotron-3-super-120b-a12b",
+            "model": "not_requested",
             "explanation": hypothesis,
         },
     )

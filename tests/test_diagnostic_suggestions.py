@@ -121,6 +121,7 @@ def test_real_import_error_repair_uses_original_fixture_assets_without_history(t
     assert report['baseline']['status'] == 'collection_error'
     assert report['repair']['verification']['status'] == 'verified'
     assert report['repair']['verification']['after']['status'] == 'pass'
-    assert 'regression' not in report
+    assert not report['regression']['confirmed']
+    assert len(report['tested_history']['commits']) == 1
     assert 'normalize_username' in (repo/'service.py').read_text()
     assert git(repo, 'status', '--porcelain') == ''

@@ -9,12 +9,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('project', nargs='?', choices=[*PUBLIC_IDS, 'all'], default='all')
     parser.add_argument('--mode', choices=['full', 'regression', 'reproduce'], default='full')
+    parser.add_argument('--history-limit', type=int, choices=range(2, 2049), metavar='2..2048', default=64)
     args = parser.parse_args()
     for name in PUBLIC_IDS if args.project == 'all' else [args.project]:
         spec = profile(name)
         print('Investigating ' + spec['name'], flush=True)
         report = run_investigation(ensure_upstream(name), '.', name, ROOT / 'reports',
-            investigation_type=args.mode, test_runner=spec['runner'], runner_image=spec['image'])
+            investigation_type=args.mode, test_runner=spec['runner'], runner_image=spec['image'],
+            history_limit=args.history_limit)
         baseline = report['baseline']
         print(json.dumps({'project': name, 'report_id': report['id'], 'status': report['status'],
             'reason': report['reason'], 'revision': report['baseline_revision'],

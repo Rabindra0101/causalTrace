@@ -225,4 +225,7 @@ __marimo__/
 /deployment/*-repo/
 /deployment/negative-reversal-demo/
 .env
+.env.*
 !.env.example
+/artifacts/
+/submission-builds/

@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+.causaltrace
+reports
+deployment
+demo
+frontend/dist
+artifacts
+submission-builds
+*.log

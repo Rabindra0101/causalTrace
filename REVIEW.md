@@ -1,4 +1,4 @@
-﻿# Submission validation
+# Submission validation
 
 ## Scope
 
@@ -103,3 +103,40 @@ Readiness now shows a visible cross on the affected component, distinguishes
 repository Git-operation errors from Git installation, and marks all checks
 unavailable when the backend cannot be reached. Component failures are explained
 inside their cards instead of a separate error banner.
+
+## Submission audit - October 25, 2026
+
+Audited the tracked CausalTrace source tree, excluding protected environment and
+credential files. FileSync was not accessed or modified. Added Docker context
+exclusions, credential-isolated tests, GitHub Actions backend/frontend/container
+checks, a Windows setup launcher, branch-specific submission/test-build links
+and a timed demonstration script. Updated instructions to match current labels
+and shared recent-history behavior. Non-AI graphs no longer name an unused model.
+
+Frontend now uses distinct investigation accent colors, richer backgrounds,
+card depth, hover feedback and short entrance/illustration animations. Existing
+large text, focus indicators and responsive layout are retained. Reduced-motion
+preferences disable motion; forced-color text stays visible. Build and lint pass.
+After Chrome was connected, the desktop dashboard was visually inspected at
+http://127.0.0.1:5174/. Colors, alignment and readiness cards rendered correctly.
+The existing active investigation was left untouched.
+
+Production npm dependency audit: zero vulnerabilities. Python dependency check:
+no broken requirements. Default Docker runner builds successfully. All four
+public upstream projects completed two-revision Docker investigations without
+Git cleanup errors: humanize 856 passed; PySnooper 28 passed; Cookiecutter 294
+passed/1 skipped; Commons CSV 53 passed/2 skipped. These are measured baselines,
+not verified public regressions. Real container coverage includes release repair,
+multilingual execution, historical outcomes and active pause/resume/cancellation;
+provider responses in automated tests are mocked.
+
+Automatic approval review blocked loading the local environment file for a live
+provider health check. No process-environment Nebius credential was available,
+so this audit did not repeat live inference. Existing secrets were preserved.
+A real inference rehearsal, public under-three-minute YouTube video and final
+Devpost entry fields remain account-owned publication steps; see SUBMISSION.md.
+
+Final expanded validation: **74 tests and 33 subtests passed; 8 optional checks
+skipped**. Frontend production build and lint passed. Both default and Commons CSV
+runner images rebuilt successfully. The final suite enables actual Docker
+history, repair, multilingual and pause/resume/stop checks with mocked inference.

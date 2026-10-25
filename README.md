@@ -1,4 +1,4 @@
-﻿# CausalTrace
+# CausalTrace
 
 Find the release change that broke your application, explain the evidence with
 NVIDIA Nemotron on Nebius Token Factory, and test proposed code repairs.
@@ -65,10 +65,21 @@ PowerShell commands above are separate lines; do not append a backslash to the p
 For macOS/Linux, create/activate a Python virtual environment, use its `python`,
 and use `npm` instead of `npm.cmd`.
 
+For a single-command Windows setup and launch, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Setup
+# Subsequent launches:
+.\scripts\start.ps1
+```
+
+The launcher preserves existing environment files. Configure your key locally
+before a model-assisted run. Dependency installation requires network access.
+
 ## Try a measured demo
 
 Choose **Broken package import** or **Configuration type mismatch**, select
-**Full investigation and repair**, and enable **Share selected evidence with
+**Find the breaking change**, and enable **Share selected evidence with
 Nebius for this run**. The app should reproduce the failure, test an adjacent
 passing/failing boundary, compare suspected and unrelated reversals, and request
 a proposed repair. A repair is verified only after unchanged tests pass.
@@ -97,11 +108,11 @@ Choose the investigation type:
 
 | Mode | Behavior |
 | --- | --- |
-| Compare releases and repair regressions | Test good/bad releases, bisect failures, reverse candidates and iterate on source repairs. |
-| Full investigation and repair | Reproduce HEAD, search recent history, run reversals and request a tested repair. |
-| AI diagnosis and development suggestions | Explain baseline errors or suggest optional improvements without requiring a historical boundary. |
-| Git regression and reversal | Test the same history, then run reversal experiments when an implementation regression is confirmed. |
-| Reproduce failure only | Test HEAD and every first-parent commit through the newest passing/failing transition, without reversals or AI. |
+| Repair a broken update | Test good/bad releases, bisect failures, reverse candidates and iterate on source repairs. |
+| Find the breaking change | Reproduce HEAD, search recent history, run reversals and request a tested repair. |
+| Explain an error | Explain baseline errors or suggest optional improvements without requiring a historical boundary. |
+| Check Git causes | Test the same history, then run reversal experiments when an implementation regression is confirmed. |
+| Explore test history | Test HEAD and every first-parent commit through the newest passing/failing transition, without reversals or AI. |
 
 Model-assisted modes require explicit sharing opt-in. It starts disabled and
 resets when changing repositories/paths. The selected source/config files, logs
@@ -109,11 +120,16 @@ and diffs are sent to **Nebius Token Factory** at runtime. Environment files,
 hidden paths, credential/secret paths and symbolic links are excluded; this is
 not a general secret scanner. Review committed code before sharing it.
 
-Context is bounded to 12 files, 100,000 source characters, 40,000 log characters
+The standard profile bounds context to 12 files, 100,000 source characters, 40,000 log characters
 and 20,000 diff characters. Files mentioned in errors/diffs and manifests receive
 priority. Reports disclose selected and omitted files. Nemotron returns likely
 causes, evidence, next steps, suggested tests and optional improvements. Advice
 is a hypothesis until independently verified.
+
+API clients can select `analysis_profile: "deep"` for larger bounded context
+(24 files and 200,000 source characters), longer model requests and up to ten
+repair attempts. The dashboard uses the standard profile. More context does not
+replace reproducible tests or establish that a model suggestion is correct.
 
 ## Release repair agent
 
@@ -121,7 +137,7 @@ Enter the last working tag/commit and the broken tag/commit. The broken release
 can differ from current HEAD. Select 1–5 repair attempts and opt into AI sharing.
 
 1. Verify the working release passes and the broken release actually fails.
-2. Group failing tests or collection errors and bisect their selected Git range.
+2. Group failing tests or collection errors and analyze their recent tested Git interval.
 3. Reverse candidate commits to test whether individual failures disappear.
 4. Ask Nemotron for implementation edits; test them in a disposable workspace.
 5. Retain an edit only when it reduces failures without losing test identities,
@@ -152,7 +168,7 @@ confirms an adjacent boundary, not the absence of earlier transient failures.
 Missing/skipped historical evidence remains visible; changed tests prevent a
 claim of implementation causality. Multiple failing tests may share one bug.
 All modes test consecutively through the newest passing/failing
-transition, with a selectable limit of 16?2,048 commits (default 64). Every tested
+transition, with a selectable limit of 16 to 2,048 commits (default 64). Every tested
 commit is saved with its original date, message, status and output. The timeline
 marks the most recent pass and fail and supports local repositories from persisted
 report evidence, without reopening the source. Search limits or unavailable test

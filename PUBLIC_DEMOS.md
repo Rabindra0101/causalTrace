@@ -1,4 +1,4 @@
-﻿# Full upstream repository investigations
+# Full upstream repository investigations
 
 The four public project entries now clone **complete original Git repositories**
 into `.causaltrace/upstream/` inside CausalTrace. They check out pinned historical
@@ -14,12 +14,12 @@ No generated regression commits or authored replay tests are injected.
 | [Apache Commons CSV](https://github.com/apache/commons-csv) | `0833f45bffd40f44ba6f294d84e9bac8a9ba0a37` | 53 passed, 2 skipped |
 
 These historical revisions contain the previously demonstrated defects, but their
-original test suites do not reproduce those defects in these runners. Full-mode
-investigations therefore stop with **no failure reproduced**. They do not claim
-verified regression boundaries, model diagnoses, or repairs. Skipped tests remain
-visible and prevent a claim that every test passed. A failing baseline is required
-before the existing historical search and reversal workflow proceeds; search is
-limited to 16 first-parent revisions. Full Git history is retained by the clone.
+original test suites do not reproduce those defects in these runners. Every mode tests backward through the most recent passing/failing transition,
+up to the selected history limit (default 64), or the repository root. A passing
+HEAD can reveal an older failure as a recovery. Skips and runner errors stay
+visible while the search continues; incomplete evidence cannot verify a boundary.
+No failing public baseline or verified public repair is claimed here. Full Git
+history is retained by the clone.
 
 From CausalTrace, prepare all four projects in Windows PowerShell:
 
@@ -34,7 +34,7 @@ foreach ($project in @('humanize', 'pysnooper', 'cookiecutter')) {
 }
 docker build -f Dockerfile.upstream-csv -t causaltrace-upstream-commons-csv:local .causaltrace/upstream/commons-csv
 if ($LASTEXITCODE -ne 0) { throw 'CSV runner build failed' }
-.\.venv\Scripts\python.exe -m scripts.run_upstream_investigations all
+.\.venv\Scripts\python.exe -m scripts.run_upstream_investigations all --mode reproduce --history-limit 2
 if ($LASTEXITCODE -ne 0) { throw 'Investigation failed' }
 ```
 
