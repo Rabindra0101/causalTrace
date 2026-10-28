@@ -123,13 +123,21 @@ def test_real_docker_freezes_resumes_same_container_and_stop_removes_it(tmp_path
     name='causaltrace-control-'+uuid.uuid4().hex[:12]
     script="import pathlib,time,os\nfor i in range(10000):\n pathlib.Path('/ticks/ticks').write_text(str(os.getpid())+':'+str(i))\n time.sleep(.03)"
     control=Control()
-    command=['docker','run','--rm','--name',name,'--network','none','--read-only','--user','0:0','--cap-drop','ALL','--mount',f'type=bind,source={tmp_path},target=/ticks','causaltrace-test-runner:local','python','-u','-c',script]
+    # Linux pytest directories are owner-only. Root with CAP_DAC_OVERRIDE dropped
+    # cannot write there; use the host owner while keeping all capabilities dropped.
+    user=f'{os.getuid()}:{os.getgid()}' if hasattr(os, 'getuid') else '0:0'
+    command=['docker','run','--rm','--name',name,'--network','none','--read-only','--user',user,'--cap-drop','ALL','--mount',f'type=bind,source={tmp_path},target=/ticks','causaltrace-test-runner:local','python','-u','-c',script]
     thread, values, errors = worker(control,lambda:run(command,capture_output=True,text=True,timeout=20))
     def docker(*args):
         return subprocess.run(['docker',*args],capture_output=True,text=True,timeout=5)
     try:
         copy=tmp_path/'ticks'
-        until(lambda:copy.exists() and ':' in copy.read_text())
+        def started():
+            assert not errors, f'Container worker failed: {errors}'
+            if values:
+                pytest.fail(f'Container exited before writing ticks: {values[0].stderr}')
+            return copy.exists() and ':' in copy.read_text()
+        until(started)
         identity=docker('inspect','--format','{{.Id}}',name).stdout.strip()
         control.command('pause')
         until(lambda:control.pause_effect=='paused')

@@ -140,3 +140,17 @@ Final expanded validation: **74 tests and 33 subtests passed; 8 optional checks
 skipped**. Frontend production build and lint passed. Both default and Commons CSV
 runner images rebuilt successfully. The final suite enables actual Docker
 history, repair, multilingual and pause/resume/stop checks with mocked inference.
+
+## GitHub Actions Docker repair - October 28, 2026
+
+The initial hosted run passed backend/frontend but failed the active-container
+control test before its first tick. Its bind-mounted pytest directory is
+owner-only on Linux; root with all capabilities dropped cannot bypass those
+permissions. The test now uses the host UID/GID on POSIX and preserves the
+Windows Docker Desktop fallback. Capability restrictions remain unchanged.
+Early container exits now surface stderr instead of only a polling timeout.
+
+All five active-operation checks passed locally with actual Docker pause,
+resume and stop enabled. Actions now use Node 24 runtime versions and the
+Ubuntu 24.04 runner is explicit, avoiding an implicit distribution migration.
+The pushed workflow is the authoritative Linux validation.
