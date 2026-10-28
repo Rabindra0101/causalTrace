@@ -1,4 +1,4 @@
-﻿# CausalTrace submission
+# CausalTrace submission
 
 ## Entry and access
 
@@ -10,7 +10,7 @@
 
 The reviewed work is on **mainWorking**, not the repository's default branch.
 This is a local test build requiring Python, Node, Git, Docker Desktop and an
-independently configured Nebius API key. It is not a hosted inference service.
+privately supplied judge-only Nebius API key. It is not a hosted inference service.
 Do not publish the filesystem/Docker API as an unauthenticated public server.
 
 ## Description
@@ -30,7 +30,7 @@ There is no promise of zero bugs or universal framework compatibility.
 
 ## Judge walkthrough
 
-1. Follow README setup and configure your own key locally. Never share `.env`.
+1. Follow JUDGE_ACCESS.md setup and configure the privately supplied judge key locally. Never share `.env`.
 2. Choose **Broken package import**, then **Find the breaking change**.
 3. Opt into **Share selected evidence with Nebius for this run** and run.
 4. Inspect actual failure, tested history, candidate/control reversals, Nemotron
@@ -46,7 +46,7 @@ a failing baseline. They are not advertised as verified public regressions.
 Automated model responses are mocked; real Docker tests validate execution and
 repair acceptance, not live model quality. Provider inference needs live access.
 
-## Official requirements checked October 25, 2026
+## Official requirements checked October 28, 2026
 
 [Official rules](https://nebiusglobalaihackathon.devpost.com/rules) and
 [event page](https://nebiusglobalaihackathon.devpost.com/).
@@ -69,3 +69,16 @@ Explain substantial new work if the project predates the allowed build period.
 
 These account-owned publication steps remain necessary before calling the entry
 submitted. The repository does not contain a fabricated video or feedback record.
+
+## Ready-to-use materials
+
+- [DEVPOST_STORY.md](DEVPOST_STORY.md): project story, technology details and feedback draft.
+- [JUDGE_ACCESS.md](JUDGE_ACCESS.md): private access preparation and clean-machine commands.
+- [DEMO_SCRIPT.md](DEMO_SCRIPT.md): timed video plan.
+- GitHub Actions packages a prebuilt frontend test ZIP only after all checks pass.
+  Artifacts may require GitHub sign-in; use a public release asset for judge downloads.
+- Build manifest records the source commit and individual file hashes. A SHA256
+  sidecar verifies the downloadable ZIP. No local environment or report files are packaged.
+
+The dedicated judge key still needs to be created and shared privately. The video
+has not yet been recorded or uploaded, and the Devpost form has not been submitted.

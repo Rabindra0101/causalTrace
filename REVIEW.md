@@ -154,3 +154,34 @@ All five active-operation checks passed locally with actual Docker pause,
 resume and stop enabled. Actions now use Node 24 runtime versions and the
 Ubuntu 24.04 runner is explicit, avoiding an implicit distribution migration.
 The pushed workflow is the authoritative Linux validation.
+
+## Final preflight - October 28, 2026
+
+Rules and overview rechecked directly on Devpost. The selected track is Coding
+and Agentic Engineering. Source remains public and GitHub detects the MIT license.
+The prior hosted backend, frontend and Docker run passed. Added a clean-commit
+packager with prebuilt frontend assets, source revision, individual file hashes
+and a ZIP checksum. CI creates the package only after all test jobs pass. A
+prebuilt launch skips the Node/npm toolchain while retaining the local backend
+and Docker requirements. Package tests cover untracked-file exclusion, dirty
+source rejection, credential-path rejection and checksum consistency.
+
+A live bundled-import run (f466b66aeba94e109f6143431849d41b) completed with a real
+Nemotron diagnosis. Historical tests and suspected reversal confirmed the import
+regression; the unrelated reversal did not resolve it. The model proposed a test
+edit, which was rejected. This run does not establish a verified AI repair.
+The request now explicitly enumerates editable implementation paths in its
+schema and treats tests as the required contract. Enforcement remains independent
+of the model; mocked-provider and actual Docker regression tests cover it.
+
+The entrant declined further live key use after an automatic review blocked a
+backend import diagnostic. No further live inference is authorized in this audit.
+The entrant will perform final live verification. Do not describe the revised
+prompt as live-verified until that separate rehearsal succeeds.
+
+DEVPOST_STORY.md provides the project description, engineering explanation and
+feedback draft. JUDGE_ACCESS.md documents the entrant's chosen private judge-only
+access route without containing credentials. A dedicated funded key, the public
+YouTube video and final Devpost form remain publication requirements, not completed
+code features. Registration/terms acceptance and eligibility declarations belong
+to the entrant. No claims of final submission or organizer approval are made.

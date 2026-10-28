@@ -7,7 +7,7 @@ CausalTrace combines Git history, isolated Docker tests, reversal experiments an
 a bounded coding-agent loop. It keeps the original repository unchanged and
 produces a report and a cumulative repair patch for review.
 
-## Quick start — Windows PowerShell
+## Quick start â€” Windows PowerShell
 
 Run from the CausalTrace repository root. Requirements: Python 3.11+, Git 2.28+,
 Node.js 22.12+ and Docker Desktop using Linux containers.
@@ -48,7 +48,7 @@ These controls require the same running backend process; restarting it ends the 
 Refreshing or reopening the page reconnects to an active investigation and restores
 its controls. The page loads the saved report when that investigation finishes.
 Only one investigation runs at a time; additional run requests return HTTP 409.
-Readiness cards show ✓ for available checks and × for missing or failed components.
+Readiness cards show âœ“ for available checks and Ã— for missing or failed components.
 If the backend is unreachable, all three checks show unavailable rather than stale
 green results. Git readiness checks installation; a repository-operation failure
 is shown separately on the Git card.
@@ -134,7 +134,7 @@ replace reproducible tests or establish that a model suggestion is correct.
 ## Release repair agent
 
 Enter the last working tag/commit and the broken tag/commit. The broken release
-can differ from current HEAD. Select 1–5 repair attempts and opt into AI sharing.
+can differ from current HEAD. Select 1â€“5 repair attempts and opt into AI sharing.
 
 1. Verify the working release passes and the broken release actually fails.
 2. Group failing tests or collection errors and analyze their recent tested Git interval.
@@ -237,6 +237,22 @@ without a model request. The dashboard provides release comparison and diagnosis
 
 ## Submission and operating scope
 
-See [SUBMISSION.md](SUBMISSION.md) for the description and demonstration sequence.
+See [SUBMISSION.md](SUBMISSION.md) for the requirements checklist and download links,
+[DEVPOST_STORY.md](DEVPOST_STORY.md) for the entry description and feedback draft,
+and [JUDGE_ACCESS.md](JUDGE_ACCESS.md) for private judge access instructions.
+
+The packaged test build includes the compiled frontend. From its extracted
+causalTrace directory, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Setup -UsePrebuiltFrontend
+```
+
+It needs Python, Git and Docker Desktop; Node is only needed when building from
+source. To create a package from a clean committed checkout after a frontend
+build, run `.\.venv\Scripts\python.exe -m scripts.package_submission`. The ZIP
+contains a source-commit manifest and file hashes, plus a SHA256 sidecar.
+
+The private judge key must be provided separately; it is never part of a build.
 MIT license. Use one API worker bound to localhost: this prototype has no
 multi-tenant authentication and is intended for trusted local repositories.

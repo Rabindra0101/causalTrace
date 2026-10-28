@@ -1,4 +1,4 @@
-param([switch]$Setup, [ValidateRange(1,65535)][int]$Port = 8000)
+param([switch]$Setup, [switch]$UsePrebuiltFrontend, [ValidateRange(1,65535)][int]$Port = 8000)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
@@ -7,19 +7,24 @@ function Assert-Success([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed (exit $LASTEXITCODE)" }
 }
 if ($Setup) {
+    if ($UsePrebuiltFrontend -and -not (Test-Path -LiteralPath 'frontend\dist\index.html')) {
+        throw 'This directory has no prebuilt frontend. Omit -UsePrebuiltFrontend to build it.'
+    }
     if (-not (Test-Path -LiteralPath $python)) {
         python -m venv .venv
         Assert-Success 'Virtual environment creation'
     }
     & $python -m pip install -r requirements.txt
     Assert-Success 'Backend dependency installation'
-    Push-Location frontend
-    try {
-        npm.cmd ci
-        Assert-Success 'Frontend dependency installation'
-        npm.cmd run build
-        Assert-Success 'Frontend build'
-    } finally { Pop-Location }
+    if (-not $UsePrebuiltFrontend) {
+        Push-Location frontend
+        try {
+            npm.cmd ci
+            Assert-Success 'Frontend dependency installation'
+            npm.cmd run build
+            Assert-Success 'Frontend build'
+        } finally { Pop-Location }
+    }
     docker build -f Dockerfile.test-runner -t causaltrace-test-runner:local .
     Assert-Success 'Docker runner build'
 }

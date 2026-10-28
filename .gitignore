@@ -229,3 +229,4 @@ __marimo__/
 !.env.example
 /artifacts/
 /submission-builds/
+/judge-access.local.md

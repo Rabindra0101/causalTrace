@@ -175,6 +175,17 @@ _verify_lock = threading.Lock()
 
 def investigate(request: BuildRequest):
     schema = Diagnosis.model_json_schema()
+    editable_paths = []
+    for file in request.files:
+        try:
+            validate_edits([Replacement(path=file.path, old='placeholder', new='')])
+        except ValueError:
+            continue
+        editable_paths.append(file.path)
+    if editable_paths:
+        schema['$defs']['Replacement']['properties']['path']['enum'] = editable_paths
+    else:
+        schema['properties']['replacements']['maxItems'] = 0
 
     system_prompt = (
         "You are CausalTrace Build Doctor. "
@@ -190,6 +201,10 @@ def investigate(request: BuildRequest):
         "For setup failures suggest dependency/build/environment corrections as instructions. No tests collected is missing coverage, not success. "
         "Suggest the smallest repair. "
         "Never modify tests or conftest.py or weaken assertions. "
+        "Existing tests define the required behavior, including public import names and types. "
+        "Restore the implementation contract instead of recommending changes to existing tests to accept the regression. "
+        "Replacement paths are restricted to these editable implementation files: "
+        + json.dumps(editable_paths) + ". All other supplied files are read-only evidence. "
         "If evidence is insufficient, explain what is missing "
         "and return no replacements. "
         "Each replacement must use an exact, unique substring "

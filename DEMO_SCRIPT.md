@@ -15,3 +15,25 @@ public YouTube video below three minutes and never show tokens or environment fi
 
 Prepare and rehearse both runs before recording. If using saved evidence, label it
 as a prior real run; do not describe mocked provider responses as live inference.
+
+## Exact opening narration
+
+"An update breaks your app. The latest commit may be innocent, and an AI patch
+may only look convincing. CausalTrace follows the tests back through Git history,
+challenges the suspected change, and asks NVIDIA Nemotron on Nebius Token Factory
+for a repair. Then unchanged tests decide whether that repair actually works."
+
+## Recording checklist
+
+- Use the packaged build and the synthetic import scenario, never a private repo.
+- Record the application window, not terminals or an environment-file editor.
+- Before recording, run the live rehearsal yourself and retain both accepted and
+  rejected outcomes. Never conceal a rejection by labeling an older run current.
+- On Windows, use Snipping Tool's video mode to select the Chrome app area, then
+  start recording. Follow the timed table, stop before three minutes and save MP4.
+- Narrate the recorded outcome. If no repair verifies, show that honestly and
+  explain that the unchanged-test guard prevented a misleading claim.
+- Play the exported file once: check readable text, duration, audio and absence
+  of credentials. Upload to YouTube as Public and verify the signed-out URL.
+- Paste the actual URL into SUBMISSION.md and Devpost. This file is a recording
+  plan and narration, not an existing video or proof of YouTube publication.

@@ -35,6 +35,11 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v6
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 90
   docker:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -55,3 +60,22 @@ jobs:
         run: >-
           python -m pytest tests/test_tested_history.py tests/test_release_investigation.py
           tests/test_active_operations.py tests/test_diagnostic_suggestions.py -q -k real
+  test-build:
+    needs: [backend, frontend, docker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - run: python -m scripts.package_submission
+      - uses: actions/upload-artifact@v6
+        with:
+          name: causaltrace-test-build
+          path: submission-builds/*
+          retention-days: 90
