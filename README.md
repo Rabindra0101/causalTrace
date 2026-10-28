@@ -1,5 +1,7 @@
 # CausalTrace
 
+Submission branch: **main**. See [SUBMISSION.md](SUBMISSION.md) for judging access and materials.
+
 Find the release change that broke your application, explain the evidence with
 NVIDIA Nemotron on Nebius Token Factory, and test proposed code repairs.
 

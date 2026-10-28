@@ -3,12 +3,12 @@
 ## Entry and access
 
 - Track: **Coding and Agentic Engineering**.
-- Public MIT source: https://github.com/Rabindra0101/causalTrace/tree/mainWorking
-- Downloadable source test build: https://github.com/Rabindra0101/causalTrace/archive/refs/heads/mainWorking.zip
+- Public MIT source: https://github.com/Rabindra0101/causalTrace/tree/main
+- Downloadable source test build: https://github.com/Rabindra0101/causalTrace/archive/refs/heads/main.zip
 - Setup: README.md. Windows launcher: `powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Setup`.
 - After setup: `.\scripts\start.ps1`. Open http://127.0.0.1:8000.
 
-The reviewed work is on **mainWorking**, not the repository's default branch.
+The reviewed submission work is on **main**, the repository's default branch.
 This is a local test build requiring Python, Node, Git, Docker Desktop and an
 privately supplied judge-only Nebius API key. It is not a hosted inference service.
 Do not publish the filesystem/Docker API as an unauthenticated public server.
