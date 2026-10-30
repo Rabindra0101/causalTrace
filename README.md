@@ -33,7 +33,7 @@ Push-Location frontend
 npm.cmd ci
 npm.cmd run build
 Pop-Location
-.\.venv\Scripts\python.exe -m uvicorn causaltrace.api:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn causaltrace.api:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 While an investigation runs, **Pause**, **Resume** and **Stop** appear beside
@@ -77,6 +77,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Setup
 
 The launcher preserves existing environment files. Configure your key locally
 before a model-assisted run. Dependency installation requires network access.
+Routine HTTP access logs are disabled by default, so status polling does not
+fill the terminal. Application errors remain visible. Use
+`.\scripts\start.ps1 -AccessLog` to enable request logs for debugging.
+Restart an already-running backend to apply this launcher change.
 
 ## Try a measured demo
 

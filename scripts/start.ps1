@@ -1,4 +1,4 @@
-param([switch]$Setup, [switch]$UsePrebuiltFrontend, [ValidateRange(1,65535)][int]$Port = 8000)
+param([switch]$Setup, [switch]$UsePrebuiltFrontend, [switch]$AccessLog, [ValidateRange(1,65535)][int]$Port = 8000)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
@@ -31,5 +31,7 @@ if ($Setup) {
 if (-not (Test-Path -LiteralPath $python)) { throw 'Run .\scripts\start.ps1 -Setup first.' }
 if (-not (Test-Path -LiteralPath 'frontend\dist\index.html')) { throw 'Frontend build missing. Run .\scripts\start.ps1 -Setup.' }
 Write-Host "Open http://127.0.0.1:$Port ; Ctrl+C stops the server."
-& $python -m uvicorn causaltrace.api:app --host 127.0.0.1 --port $Port
+$serverArguments = @('-m', 'uvicorn', 'causaltrace.api:app', '--host', '127.0.0.1', '--port', "$Port")
+if (-not $AccessLog) { $serverArguments += '--no-access-log' }
+& $python @serverArguments
 Assert-Success 'Backend'
