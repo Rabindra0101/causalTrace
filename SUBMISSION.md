@@ -3,8 +3,6 @@
 ## Entry and access
 
 - Track: **Coding and Agentic Engineering**.
-- Prebuilt test-build ZIP: https://raw.githubusercontent.com/Rabindra0101/causalTrace/26a39100048b7b0a2ab76637744a5af5f0cb56ef/downloads/causaltrace-bc02aeabe0cd-test-build.zip
-- ZIP checksum: https://raw.githubusercontent.com/Rabindra0101/causalTrace/26a39100048b7b0a2ab76637744a5af5f0cb56ef/downloads/causaltrace-bc02aeabe0cd-test-build.zip.sha256
 - Public MIT source: https://github.com/Rabindra0101/causalTrace/tree/main
 - Downloadable source test build: https://github.com/Rabindra0101/causalTrace/archive/refs/heads/main.zip
 - Setup: README.md. Windows launcher: `powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Setup`.
