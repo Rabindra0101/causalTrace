@@ -230,3 +230,12 @@ __marimo__/
 /artifacts/
 /submission-builds/
 /judge-access.local.md
+
+# Local submission drafts and historical notes; not application documentation.
+/DEMO_SCRIPT.md
+/DEVPOST_STORY.md
+/JUDGE_ACCESS.md
+/REVIEW.md
+/SUBMISSION.md
+/TEST_BUILD_RELEASE.md
+/frontend/README.md

@@ -1,7 +1,5 @@
 # CausalTrace
 
-Submission branch: **main**. See [SUBMISSION.md](SUBMISSION.md) for judging access and materials.
-
 Find the release change that broke your application, explain the evidence with
 NVIDIA Nemotron on Nebius Token Factory, and test proposed code repairs.
 
@@ -9,7 +7,7 @@ CausalTrace combines Git history, isolated Docker tests, reversal experiments an
 a bounded coding-agent loop. It keeps the original repository unchanged and
 produces a report and a cumulative repair patch for review.
 
-## Quick start â€” Windows PowerShell
+## Quick start - Windows PowerShell
 
 Run from the CausalTrace repository root. Requirements: Python 3.11+, Git 2.28+,
 Node.js 22.12+ and Docker Desktop using Linux containers.
@@ -50,7 +48,7 @@ These controls require the same running backend process; restarting it ends the 
 Refreshing or reopening the page reconnects to an active investigation and restores
 its controls. The page loads the saved report when that investigation finishes.
 Only one investigation runs at a time; additional run requests return HTTP 409.
-Readiness cards show âœ“ for available checks and Ã— for missing or failed components.
+Readiness cards show a check mark for available checks and a cross for missing or failed components.
 If the backend is unreachable, all three checks show unavailable rather than stale
 green results. Git readiness checks installation; a repository-operation failure
 is shown separately on the Git card.
@@ -140,7 +138,7 @@ replace reproducible tests or establish that a model suggestion is correct.
 ## Release repair agent
 
 Enter the last working tag/commit and the broken tag/commit. The broken release
-can differ from current HEAD. Select 1â€“5 repair attempts and opt into AI sharing.
+can differ from current HEAD. Select 1 to 5 repair attempts and opt into AI sharing.
 
 1. Verify the working release passes and the broken release actually fails.
 2. Group failing tests or collection errors and analyze their recent tested Git interval.
@@ -219,7 +217,8 @@ $env:CAUSALTRACE_RELEASE_DOCKER_TESTS = '1'
 .\.venv\Scripts\python.exe -m pytest tests/test_release_investigation.py -q
 ```
 
-[REVIEW.md](REVIEW.md) records measured checks and remaining live validation.
+GitHub Actions repeats backend, frontend and Docker checks and packages a test
+build after they pass. See the [workflow runs](https://github.com/Rabindra0101/causalTrace/actions/workflows/ci.yml).
 
 ## CLI and project map
 
@@ -241,11 +240,7 @@ without a model request. The dashboard provides release comparison and diagnosis
 - `frontend/src/InvestigationDashboard.tsx`: submission dashboard.
 - `tests/`: safety, agent, runner and workflow regression checks.
 
-## Submission and operating scope
-
-See [SUBMISSION.md](SUBMISSION.md) for the requirements checklist and download links,
-[DEVPOST_STORY.md](DEVPOST_STORY.md) for the entry description and feedback draft,
-and [JUDGE_ACCESS.md](JUDGE_ACCESS.md) for private judge access instructions.
+## Packaged builds and operating scope
 
 The packaged test build includes the compiled frontend. From its extracted
 causalTrace directory, run:
